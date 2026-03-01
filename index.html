@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node | Solid State Geo</title>
+    <title>Sentry Node | Tactical Map v4</title>
     <style>
         :root { --neon: #00ff41; --bg: #050505; }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
@@ -28,19 +28,20 @@
         #data-readout {
             position: absolute; top: 15px; right: 15px; font-size: 11px;
             background: rgba(0,0,0,0.8); padding: 10px; border-left: 2px solid var(--neon);
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
 <div id="ui-panel">
-    <div id="status-bar">SYSTEM STATUS: SOLID_SYNC_READY</div>
+    <div id="status-bar">SYSTEM STATUS: NAV_SURVEILLANCE_ACTIVE</div>
     <button onclick="engine.toggleCapture(true)">Start</button>
     <button onclick="engine.toggleCapture(false)">Pause</button>
     <button onclick="engine.stop()">Stop</button>
     <button onclick="engine.export()">Export</button>
     <button onclick="engine.clear()">Clear</button>
-    <button onclick="engine.reCenter()" style="background: var(--neon); color: #000;">Sync Camera (45°)</button>
+    <button onclick="engine.reCenter()" style="background: var(--neon); color: #000;">Re-Center (45°)</button>
 </div>
 
 <div id="data-readout">
@@ -50,6 +51,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <script>
 class SentryEngine {
@@ -59,7 +61,7 @@ class SentryEngine {
         this.watchID = null;
         this.origin = null;
         this.scale = 250000; 
-        this.zoom = 18; 
+        this.zoomLevel = 18; 
         this.tileSize = 60; 
         
         this.initScene();
@@ -69,70 +71,74 @@ class SentryEngine {
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.set(0, 50, 50);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        this.camera.position.set(0, 80, 80);
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setClearColor(0x050505);
         document.body.appendChild(this.renderer.domElement);
 
-        // Lights for solid material depth
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        // OrbitControls for Pan, Tilt, and Zoom
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.screenSpacePanning = false;
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0x00ff41, 1, 100);
-        pointLight.position.set(0, 20, 10);
+        const pointLight = new THREE.PointLight(0x00ff41, 1, 200);
+        pointLight.position.set(0, 50, 0);
         this.scene.add(pointLight);
     }
 
     initObjects() {
-        // SOLID Avatar (Pyramid/Triangle)
-        const geometry = new THREE.ConeGeometry(1, 2, 4);
+        // Pointing Down Triangle (Cone inverted)
+        const geometry = new THREE.ConeGeometry(1.2, 2.5, 4);
         const material = new THREE.MeshPhongMaterial({ 
-            color: 0x003300, 
+            color: 0x002200, 
             emissive: 0x00ff41,
-            shininess: 100,
             flatShading: true 
         });
         this.avatar = new THREE.Mesh(geometry, material);
-        this.avatar.rotation.x = Math.PI / 2;
+        // Rotate 180 degrees on X to point the tip DOWN
+        this.avatar.rotation.x = Math.PI; 
         this.scene.add(this.avatar);
 
-        // Pulsing Ring
-        const ringGeo = new THREE.RingGeometry(1.2, 1.4, 32);
+        // Pulse Ring
+        const ringGeo = new THREE.RingGeometry(1.5, 1.8, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
         this.ring = new THREE.Mesh(ringGeo, ringMat);
-        this.ring.rotation.x = Math.PI / 2;
+        this.ring.rotation.x = -Math.PI / 2;
         this.scene.add(this.ring);
 
-        // 3x3 Leaflet Tile Container
+        // 3x3 Tile Floor (Leaflet Textures)
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
     }
 
-    // Leaflet Tile Logic
     lon2tile(lon, zoom) { return Math.floor((lon + 180) / 360 * Math.pow(2, zoom)); }
     lat2tile(lat, zoom) {
         return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
     }
 
-    async updateMapTiles(lat, lon) {
+    updateMapTiles(lat, lon) {
         this.tilesGroup.clear();
-        const xCenter = this.lon2tile(lon, this.zoom);
-        const yCenter = this.lat2tile(lat, this.zoom);
+        const xCenter = this.lon2tile(lon, this.zoomLevel);
+        const yCenter = this.lat2tile(lat, this.zoomLevel);
         const loader = new THREE.TextureLoader();
 
         for (let xOff = -1; xOff <= 1; xOff++) {
             for (let yOff = -1; yOff <= 1; yOff++) {
                 const x = xCenter + xOff;
                 const y = yCenter + yOff;
-                const url = `https://tile.openstreetmap.org/${this.zoom}/${x}/${y}.png`;
+                const url = `https://tile.openstreetmap.org/${this.zoomLevel}/${x}/${y}.png`;
                 
                 loader.load(url, (texture) => {
                     const planeMat = new THREE.MeshBasicMaterial({ map: texture });
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(this.tileSize, this.tileSize), planeMat);
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(xOff * this.tileSize, -0.1, yOff * this.tileSize);
+                    plane.position.set(xOff * this.tileSize, 0, yOff * this.tileSize);
                     this.tilesGroup.add(plane);
                 });
             }
@@ -143,7 +149,7 @@ class SentryEngine {
         if (state && !this.watchID) {
             this.isCapturing = true;
             this.updateStatus("UPLINK_ACTIVE");
-            this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), (err) => this.updateStatus("GPS_ERROR"), { enableHighAccuracy: true });
+            this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), null, { enableHighAccuracy: true });
         } else {
             this.isCapturing = false;
             this.updateStatus("UPLINK_PAUSED");
@@ -165,12 +171,16 @@ class SentryEngine {
 
         const xPos = (longitude - this.origin.lon) * this.scale;
         const zPos = -(latitude - this.origin.lat) * this.scale;
-        this.avatar.position.set(xPos, 1.5, zPos);
+        
+        // Target position for smooth follow
+        this.avatar.position.set(xPos, 4, zPos);
     }
 
     reCenter() {
-        this.camera.position.set(this.avatar.position.x + 30, 30, this.avatar.position.z + 30);
-        this.camera.lookAt(this.avatar.position);
+        // Force camera to 45 degree tactical view
+        this.camera.position.set(this.avatar.position.x + 60, 60, this.avatar.position.z + 60);
+        this.controls.target.copy(this.avatar.position);
+        this.controls.update();
     }
 
     updateStatus(msg) { document.getElementById('status-bar').innerText = `SYSTEM STATUS: ${msg}`; }
@@ -179,16 +189,17 @@ class SentryEngine {
         requestAnimationFrame(() => this.animate());
         const time = performance.now() * 0.001;
 
-        // Solid Avatar Animation
-        this.avatar.position.y = 2 + Math.sin(time * 3) * 0.4;
-        this.avatar.rotation.y += 0.03;
+        // Animate solid avatar hovering
+        this.avatar.position.y = 5 + Math.sin(time * 3) * 0.5;
+        this.avatar.rotation.y += 0.02;
 
         // Pulse Ring
         let pulse = (performance.now() % 400) / 400;
-        this.ring.scale.set(1.2 + pulse * 2, 1.2 + pulse * 2, 1);
+        this.ring.scale.set(1.5 + pulse * 2.5, 1.5 + pulse * 2.5, 1);
         this.ring.material.opacity = 1 - pulse;
-        this.ring.position.set(this.avatar.position.x, 0.1, this.avatar.position.z);
+        this.ring.position.set(this.avatar.position.x, 0.2, this.avatar.position.z);
 
+        this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
 }
