@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | Blue Ops Top-Down</title>
+    <title>Sentry Node | Blue Ops v7.5</title>
     <style>
         :root { 
             --neon-blue: #00f2ff; 
@@ -71,20 +71,19 @@ class SentryEngine {
         this.scale = 650000; 
         this.zoom = 19;
         this.pathPoints = [];
-        this.currentAcc = 100;
         
         this.initCore();
         this.initEntities();
         this.animate();
         
-        // AUTOMATIC STARTUP
+        // AUTO-START ON OPEN
         this.toggleCapture(true);
     }
 
     initCore() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
-        // Default Top-View position
+        // Force Top-Down Perspective
         this.camera.position.set(0, 150, 0); 
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -103,7 +102,7 @@ class SentryEngine {
         this.avatarGroup = new THREE.Group();
         this.scene.add(this.avatarGroup);
 
-        // Solid Core - Neon Blue
+        // Core Solid - Neon Blue
         const coreGeo = new THREE.OctahedronGeometry(2.5, 0);
         const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00f2ff, emissiveIntensity: 0.8 });
         this.core = new THREE.Mesh(coreGeo, coreMat);
@@ -115,9 +114,11 @@ class SentryEngine {
         this.shell = new THREE.Mesh(shellGeo, shellMat);
         this.avatarGroup.add(this.shell);
 
+        // Map Tiles Group
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
 
+        // Movement Trail
         this.trailGeo = new THREE.BufferGeometry();
         this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6 }));
         this.scene.add(this.trail);
@@ -136,7 +137,6 @@ class SentryEngine {
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ map: tex }));
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(x * 120, 0, y * 120);
-                    // Standard Tactical Map Filter
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
                     this.tilesGroup.add(plane);
                 });
@@ -156,12 +156,11 @@ class SentryEngine {
 
     handleGPS(pos) {
         const { latitude, longitude, accuracy } = pos.coords;
-        this.currentAcc = accuracy;
 
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
             this.updateMap(latitude, longitude);
-            this.reCenter(); // Sync top view on lock
+            this.reCenter(); // Lock Top-View on initial fix
         }
 
         document.getElementById('val-lat').innerText = latitude.toFixed(5);
@@ -177,6 +176,7 @@ class SentryEngine {
     }
 
     reCenter() {
+        // Enforce top-down tactical perspective
         const height = 150;
         this.camera.position.set(this.avatarGroup.position.x, height, this.avatarGroup.position.z);
         this.controls.target.copy(this.avatarGroup.position);
@@ -190,7 +190,7 @@ class SentryEngine {
             this.avatarGroup.position.lerp(this.avatarGroup.userData.dest, 0.05);
         }
 
-        // Blue Diamond Rotations
+        // Blue Core Rotations
         this.core.rotation.y += 0.03;
         this.shell.rotation.x += 0.02;
         this.shell.rotation.z += 0.02;
