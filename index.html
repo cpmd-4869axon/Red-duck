@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | Top-View Blue Ops</title>
+    <title>Sentry Node | Blue Ops Top-Down</title>
     <style>
         :root { 
             --neon-blue: #00f2ff; 
-            --warning: #ff3e3e;
             --bg: #020202; 
             --map-filter: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(6) hue-rotate(60deg);
         }
@@ -44,11 +43,11 @@
 
 <div id="ui-overlay">
     <div id="main-panel">
-        <div id="status-header">SYSTEM // BLUE_OPS: <span style="color:var(--neon-blue)">ACTIVE</span></div>
+        <div id="status-header">SENTRY NODE // MAP_MODE: <span style="color:var(--neon-blue)">BLUE_OPS</span></div>
         <div class="btn-grid">
             <button onclick="engine.toggleCapture(false)">Hold Link</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
-            <button style="grid-column: span 2; background: rgba(0,242,255,0.15)" onclick="engine.reCenter()">Sync Top-View (90°)</button>
+            <button style="grid-column: span 2; background: rgba(0,242,255,0.15)" onclick="engine.reCenter()">Sync Tactical Top-View</button>
             <button onclick="engine.clearTrail()">Purge Path</button>
             <button onclick="window.location.reload()">Reboot</button>
         </div>
@@ -78,14 +77,14 @@ class SentryEngine {
         this.initEntities();
         this.animate();
         
-        // AUTO-START SEQUENCE
+        // AUTOMATIC STARTUP
         this.toggleCapture(true);
     }
 
     initCore() {
         this.scene = new THREE.Scene();
-        // Set camera for Top-Down Perspective
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+        // Default Top-View position
         this.camera.position.set(0, 150, 0); 
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -110,17 +109,11 @@ class SentryEngine {
         this.core = new THREE.Mesh(coreGeo, coreMat);
         this.avatarGroup.add(this.core);
 
-        // Wireframe Shell - Neon Blue
+        // Wireframe Diamond Shell
         const shellGeo = new THREE.OctahedronGeometry(3.1, 0);
         const shellMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.9 });
         this.shell = new THREE.Mesh(shellGeo, shellMat);
         this.avatarGroup.add(this.shell);
-
-        // Data Sphere
-        const sphereGeo = new THREE.IcosahedronGeometry(7, 1);
-        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.15 });
-        this.sphere = new THREE.Mesh(sphereGeo, this.sphereMat);
-        this.avatarGroup.add(this.sphere);
 
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
@@ -143,6 +136,7 @@ class SentryEngine {
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ map: tex }));
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(x * 120, 0, y * 120);
+                    // Standard Tactical Map Filter
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
                     this.tilesGroup.add(plane);
                 });
@@ -167,7 +161,7 @@ class SentryEngine {
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
             this.updateMap(latitude, longitude);
-            this.reCenter(); // Force Top-View on first lock
+            this.reCenter(); // Sync top view on lock
         }
 
         document.getElementById('val-lat').innerText = latitude.toFixed(5);
@@ -183,7 +177,6 @@ class SentryEngine {
     }
 
     reCenter() {
-        // Enforce 90-degree tactical top view
         const height = 150;
         this.camera.position.set(this.avatarGroup.position.x, height, this.avatarGroup.position.z);
         this.controls.target.copy(this.avatarGroup.position);
@@ -193,22 +186,14 @@ class SentryEngine {
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        const time = performance.now() * 0.001;
-
         if (this.avatarGroup.userData.dest) {
             this.avatarGroup.position.lerp(this.avatarGroup.userData.dest, 0.05);
         }
 
-        // Blue Core Rotations
+        // Blue Diamond Rotations
         this.core.rotation.y += 0.03;
         this.shell.rotation.x += 0.02;
         this.shell.rotation.z += 0.02;
-        this.sphere.rotation.y -= 0.01;
-
-        // Visual Feedback on Signal
-        const s = 1 + (this.currentAcc / 45);
-        this.sphere.scale.setScalar(s);
-        this.sphereMat.color.setHex(this.currentAcc > 15 ? 0xff3e3e : 0x00f2ff);
 
         this.light.position.set(this.avatarGroup.position.x, 15, this.avatarGroup.position.z);
         this.controls.update();
