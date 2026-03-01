@@ -2,56 +2,69 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node | NCH Data Sphere v5</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sentry Node | NCH Advanced Core</title>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; --map-green: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(5) hue-rotate(70deg); }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
+        :root { 
+            --neon: #00ff41; 
+            --warning: #ff3e3e;
+            --bg: #020202; 
+            --panel-bg: rgba(0, 10, 0, 0.9);
+            --map-green: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(6) hue-rotate(60deg);
+        }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); user-select: none; }
         
+        /* Apply Tactical Green Filter to Leaflet Tiles */
+        canvas { display: block; filter: contrast(1.1); }
         .leaflet-tile-container { filter: var(--map-green); }
 
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
-        
-        #ui-panel {
-            position: absolute; top: 15px; left: 15px; pointer-events: auto;
-            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
-            background: rgba(0, 15, 0, 0.9); padding: 15px; 
-            border: 1px solid var(--neon); box-shadow: 0 0 25px rgba(0, 255, 65, 0.2);
+        #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; border: 1px solid rgba(0, 255, 65, 0.1); }
+
+        #main-panel {
+            position: absolute; top: 20px; left: 20px; pointer-events: auto;
+            background: var(--panel-bg); padding: 15px; border: 1px solid var(--neon);
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.15); width: 220px;
         }
 
-        #status-bar { grid-column: span 2; font-size: 11px; border-bottom: 1px solid var(--neon); padding-bottom: 8px; margin-bottom: 8px; }
+        #status-header { font-size: 10px; border-bottom: 1px solid var(--neon); padding-bottom: 8px; margin-bottom: 10px; letter-spacing: 2px; }
 
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
         button {
             background: transparent; color: var(--neon); border: 1px solid var(--neon);
-            padding: 8px; cursor: pointer; text-transform: uppercase; font-size: 10px;
-            font-weight: 900;
+            padding: 8px; cursor: pointer; text-transform: uppercase; font-size: 9px;
+            font-weight: bold; transition: 0.2s;
         }
-
         button:active { background: var(--neon); color: #000; }
+        .full-btn { grid-column: span 2; background: rgba(0, 255, 65, 0.1); }
 
-        #telemetry {
-            position: absolute; top: 15px; right: 15px; font-size: 11px;
-            background: rgba(0, 5, 0, 0.85); padding: 12px; border-left: 3px solid var(--neon);
-            text-align: right;
+        #telemetry-box {
+            position: absolute; top: 20px; right: 20px; font-size: 11px;
+            background: var(--panel-bg); padding: 12px; border-right: 4px solid var(--neon);
+            text-align: right; pointer-events: auto;
         }
+        .data-bit { display: block; margin-bottom: 4px; }
+        .val { font-weight: bold; color: #fff; }
     </style>
 </head>
 <body>
 
-<div id="ui-layer">
-    <div id="ui-panel">
-        <div id="status-bar">SENTRY NODE // SPHERE_SYNC: <span id="sync-val">ACTIVE</span></div>
-        <button onclick="engine.toggleCapture(true)">Connect</button>
-        <button onclick="engine.toggleCapture(false)">Pause</button>
-        <button onclick="engine.reCenter()" style="background: var(--neon); color: #000; grid-column: span 2;">SYNC TACTICAL VIEW (45°)</button>
-        <button onclick="engine.clearTrail()">Clear Trail</button>
-        <button onclick="engine.export()">Export</button>
+<div id="ui-overlay">
+    <div id="main-panel">
+        <div id="status-header">SYSTEM // SENTRY_NODE_v6.2</div>
+        <div class="btn-grid">
+            <button onclick="engine.toggleCapture(true)">Connect</button>
+            <button onclick="engine.toggleCapture(false)">Hold</button>
+            <button class="full-btn" onclick="engine.reCenter()">Sync Tactical 45°</button>
+            <button onclick="engine.clearTrail()">Purge Path</button>
+            <button onclick="window.location.reload()">Reboot</button>
+        </div>
     </div>
 
-    <div id="telemetry">
-        LAT: <span id="val-lat">---</span><br>
-        LON: <span id="val-lon">---</span><br>
-        ACC: <span id="val-acc">---</span>
+    <div id="telemetry-box">
+        <span class="data-bit">SIGNAL: <span id="val-acc" class="val">OFFLINE</span></span>
+        <span class="data-bit">LAT: <span id="val-lat" class="val">0.0000</span></span>
+        <span class="data-bit">LON: <span id="val-lon" class="val">0.0000</span></span>
+        <span class="data-bit">SYNC: <span id="val-sync" class="val">LOCAL</span></span>
     </div>
 </div>
 
@@ -65,59 +78,56 @@ class SentryEngine {
         this.origin = null;
         this.scale = 650000; 
         this.zoom = 19;
-        this.tileSize = 120;
         this.pathPoints = [];
-        this.currentAccuracy = 0;
+        this.currentAcc = 100;
         
-        this.initScene();
+        this.initCore();
         this.initEntities();
         this.animate();
     }
 
-    initScene() {
+    initCore() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        this.camera.position.set(80, 80, 80); 
+        this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.5, 15000);
+        this.camera.position.set(100, 100, 100);
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.body.appendChild(this.renderer.domElement);
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
 
-        this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        this.spotlight = new THREE.PointLight(0x00ff41, 2, 300);
-        this.scene.add(this.spotlight);
+        this.scene.add(new THREE.AmbientLight(0x404040, 1));
+        this.spot = new THREE.PointLight(0x00ff41, 3, 250);
+        this.scene.add(this.spot);
     }
 
     initEntities() {
-        // DIAMOND CORE
-        const coreGeo = new THREE.OctahedronGeometry(2.2, 0);
-        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ff41, shininess: 100 });
+        // CORE DIAMOND 
+        const coreGeo = new THREE.OctahedronGeometry(2.5, 0);
+        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ff41, emissiveIntensity: 1 });
         this.avatar = new THREE.Mesh(coreGeo, coreMat);
         this.scene.add(this.avatar);
 
-        // DATA SPHERE (Wireframe Icosahedron)
-        const sphereGeo = new THREE.IcosahedronGeometry(4.5, 1);
-        const sphereMat = new THREE.MeshBasicMaterial({ 
-            color: 0x00ff41, 
-            wireframe: true, 
-            transparent: true, 
-            opacity: 0.15 
-        });
-        this.dataSphere = new THREE.Mesh(sphereGeo, sphereMat);
-        this.avatar.add(this.dataSphere); // Attach to avatar so it moves together
+        // DATA SPHERE - ADAPTIVE WIREFRAME
+        const sphereGeo = new THREE.IcosahedronGeometry(5, 1);
+        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true, transparent: true, opacity: 0.2 });
+        this.sphere = new THREE.Mesh(sphereGeo, this.sphereMat);
+        this.avatar.add(this.sphere);
 
-        // Pulsing Ring
-        const ringGeo = new THREE.RingGeometry(3, 3.5, 32);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
-        this.ring = new THREE.Mesh(ringGeo, ringMat);
+        // TACTICAL PULSE RING
+        const ringGeo = new THREE.RingGeometry(3.5, 4, 4); // Square-ish diamond ring
+        this.ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
+        this.ring = new THREE.Mesh(ringGeo, this.ringMat);
         this.ring.rotation.x = -Math.PI / 2;
         this.scene.add(this.ring);
 
-        this.trailGeometry = new THREE.BufferGeometry();
-        this.trail = new THREE.Line(this.trailGeometry, new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.6 }));
+        // BREADCRUMB TRAIL
+        this.trailGeo = new THREE.BufferGeometry();
+        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00ff41, opacity: 0.5, transparent: true }));
         this.scene.add(this.trail);
 
         this.tilesGroup = new THREE.Group();
@@ -130,14 +140,16 @@ class SentryEngine {
         const yC = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, this.zoom));
         const loader = new THREE.TextureLoader();
 
-        for (let xOff = -1; xOff <= 1; xOff++) {
-            for (let yOff = -1; yOff <= 1; yOff++) {
-                const url = `https://tile.openstreetmap.org/${this.zoom}/${xC + xOff}/${yC + yOff}.png`;
+        for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+                const url = `https://tile.openstreetmap.org/${this.zoom}/${xC + x}/${yC + y}/.png`;
                 loader.load(url, (tex) => {
-                    const planeMat = new THREE.MeshBasicMaterial({ map: tex });
-                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(this.tileSize, this.tileSize), planeMat);
+                    const plane = new THREE.Mesh(
+                        new THREE.PlaneGeometry(120, 120),
+                        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9 })
+                    );
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(xOff * this.tileSize, 0, yOff * this.tileSize);
+                    plane.position.set(x * 120, 0, y * 120);
                     this.tilesGroup.add(plane);
                 });
             }
@@ -145,18 +157,17 @@ class SentryEngine {
     }
 
     toggleCapture(state) {
+        this.isCapturing = state;
         if (state) {
-            this.isCapturing = true;
-            this.watchID = navigator.geolocation.watchPosition((p) => this.handleUpdate(p), null, { enableHighAccuracy: true });
+            this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), null, { enableHighAccuracy: true });
         } else {
-            this.isCapturing = false;
             navigator.geolocation.clearWatch(this.watchID);
         }
     }
 
-    handleUpdate(pos) {
+    handleGPS(pos) {
         const { latitude, longitude, accuracy } = pos.coords;
-        this.currentAccuracy = accuracy;
+        this.currentAcc = accuracy;
 
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
@@ -164,53 +175,71 @@ class SentryEngine {
             this.reCenter();
         }
 
-        document.getElementById('val-lat').innerText = latitude.toFixed(6);
-        document.getElementById('val-lon').innerText = longitude.toFixed(6);
-        document.getElementById('val-acc').innerText = accuracy.toFixed(0) + "m";
-
+        // Logical Update: Visual Telemetry
+        document.getElementById('val-lat').innerText = latitude.toFixed(5);
+        document.getElementById('val-lon').innerText = longitude.toFixed(5);
+        document.getElementById('val-acc').innerText = accuracy.toFixed(1) + "m";
+        
         const tX = (longitude - this.origin.lon) * this.scale;
         const tZ = -(latitude - this.origin.lat) * this.scale;
-        
-        this.pathPoints.push(new THREE.Vector3(tX, 0.5, tZ));
-        this.trailGeometry.setFromPoints(this.pathPoints);
-        this.avatar.userData.target = new THREE.Vector3(tX, 5, tZ);
+
+        // Path Update
+        this.pathPoints.push(new THREE.Vector3(tX, 0.2, tZ));
+        if (this.pathPoints.length > 200) this.pathPoints.shift();
+        this.trailGeo.setFromPoints(this.pathPoints);
+
+        this.avatar.userData.dest = new THREE.Vector3(tX, 6, tZ);
     }
 
-    clearTrail() { this.pathPoints = []; this.trailGeometry.setFromPoints([]); }
-
     reCenter() {
-        const d = 100;
-        this.camera.position.set(this.avatar.position.x + d, d, this.avatar.position.z + d);
+        if (!this.avatar) return;
+        const offset = 80;
+        this.camera.position.set(this.avatar.position.x + offset, offset, this.avatar.position.z + offset);
         this.controls.target.copy(this.avatar.position);
     }
 
+    clearTrail() { this.pathPoints = []; this.trailGeo.setFromPoints([]); }
+
     animate() {
         requestAnimationFrame(() => this.animate());
-        if (this.avatar.userData.target) this.avatar.position.lerp(this.avatar.userData.target, 0.05);
-
         const time = performance.now() * 0.001;
 
-        // Diamond & Sphere Rotations
-        this.avatar.rotation.y += 0.02;
-        this.dataSphere.rotation.x += 0.01;
-        this.dataSphere.rotation.z += 0.01;
+        if (this.avatar.userData.dest) {
+            this.avatar.position.lerp(this.avatar.userData.dest, 0.06);
+        }
 
-        // Scale Data Sphere based on signal accuracy (tightens when accurate)
-        const scaleFactor = 1 + (this.currentAccuracy / 30);
-        this.dataSphere.scale.set(scaleFactor, scaleFactor, scaleFactor);
-        this.dataSphere.material.opacity = 0.1 + Math.sin(time * 2) * 0.05;
+        // Advanced Entity Logic: Accuracy Coloring
+        if (this.currentAcc > 15) {
+            this.sphereMat.color.setHex(0xff3e3e); // Red Warning
+            document.getElementById('val-acc').style.color = 'var(--warning)';
+        } else {
+            this.sphereMat.color.setHex(0x00ff41); // Green Stable
+            document.getElementById('val-acc').style.color = 'var(--neon)';
+        }
 
-        let p = (performance.now() % 1000) / 1000;
-        this.ring.scale.set(1.5 + p * 2.5, 1.5 + p * 2.5, 1);
-        this.ring.material.opacity = 1 - p;
-        this.ring.position.set(this.avatar.position.x, 0.2, this.avatar.position.z);
-        this.spotlight.position.set(this.avatar.position.x, 15, this.avatar.position.z);
+        // Visual Flux
+        this.avatar.rotation.y += 0.03;
+        this.sphere.rotation.x += 0.01;
+        this.sphere.rotation.z += 0.01;
+        this.sphere.scale.setScalar(1 + Math.sin(time * 3) * 0.05 + (this.currentAcc / 40));
+
+        let p = (performance.now() % 1200) / 1200;
+        this.ring.scale.setScalar(1.5 + p * 3);
+        this.ringMat.opacity = 1 - p;
+        this.ring.position.set(this.avatar.position.x, 0.5, this.avatar.position.z);
+        
+        this.spot.position.set(this.avatar.position.x, 15, this.avatar.position.z);
 
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
 }
 const engine = new SentryEngine();
+window.addEventListener('resize', () => {
+    engine.camera.aspect = window.innerWidth / window.innerHeight;
+    engine.camera.updateProjectionMatrix();
+    engine.renderer.setSize(window.innerWidth, window.innerHeight);
+});
 </script>
 </body>
 </html>
