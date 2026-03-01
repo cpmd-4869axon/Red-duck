@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node Alpha | Geo-Texture Mapping</title>
+    <title>Sentry Node | 3D Geo-Texture</title>
     <style>
         :root { --neon: #00ff41; --bg: #050505; }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
@@ -23,7 +23,7 @@
             transition: all 0.2s; font-weight: bold;
         }
 
-        button:hover { background: var(--neon); color: #000; }
+        button:active { background: var(--neon); color: #000; }
 
         #data-readout {
             position: absolute; top: 15px; right: 15px; font-size: 11px;
@@ -58,8 +58,9 @@ class SentryEngine {
         this.isCapturing = false;
         this.watchID = null;
         this.origin = null;
-        this.scale = 200000;
-        this.zoom = 18; // Leaflet zoom level for tile detail
+        this.scale = 200000; // Adjusts movement speed in 3D relative to GPS
+        this.zoom = 18; // Leaflet zoom level
+        this.tileSize = 40; // 3D units per map tile
         
         this.initScene();
         this.initObjects();
@@ -69,7 +70,7 @@ class SentryEngine {
     initScene() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.camera.position.set(0, 30, 30);
+        this.camera.position.set(0, 40, 40);
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -77,50 +78,50 @@ class SentryEngine {
     }
 
     initObjects() {
-        // Avatar (Triangle/Pyramid)
+        // Avatar (Sentry Pyramid)
         const geometry = new THREE.CylinderGeometry(0, 0.8, 1.5, 4, 1);
         const material = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true });
         this.avatar = new THREE.Mesh(geometry, material);
         this.avatar.rotation.x = Math.PI / 2;
         this.scene.add(this.avatar);
 
-        // Pulsing Ring
+        // Pulsing Ring (0.4s cycle)
         const ringGeo = new THREE.RingGeometry(0.9, 1.1, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
         this.ring = new THREE.Mesh(ringGeo, ringMat);
         this.ring.rotation.x = Math.PI / 2;
         this.scene.add(this.ring);
 
-        // The 3x3 Tile Floor
+        // 3x3 Tile Floor Container
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
     }
 
-    // Convert GPS to OSM Tile Coordinates
+    // Leaflet Tile Logic: Lat/Lon to Tile X/Y
     lon2tile(lon, zoom) { return Math.floor((lon + 180) / 360 * Math.pow(2, zoom)); }
     lat2tile(lat, zoom) {
         return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
     }
 
     async updateMapTiles(lat, lon) {
-        this.tilesGroup.clear();
+        this.tilesGroup.clear(); // Unload existing tiles
         const xCenter = this.lon2tile(lon, this.zoom);
         const yCenter = this.lat2tile(lat, this.zoom);
         const loader = new THREE.TextureLoader();
-        const tileSize = 40; // Size of plane in 3D units
 
+        // Generate 3x3 Tile Grid
         for (let xOff = -1; xOff <= 1; xOff++) {
             for (let yOff = -1; yOff <= 1; yOff++) {
                 const x = xCenter + xOff;
                 const y = yCenter + yOff;
-                // OpenStreetMap Tile URL
                 const url = `https://tile.openstreetmap.org/${this.zoom}/${x}/${y}.png`;
                 
                 loader.load(url, (texture) => {
-                    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.7 });
-                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(tileSize, tileSize), material);
+                    const planeMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(this.tileSize, this.tileSize), planeMat);
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(xOff * tileSize, -0.1, yOff * tileSize);
+                    // Position relative to center tile
+                    plane.position.set(xOff * this.tileSize, -0.05, yOff * this.tileSize);
                     this.tilesGroup.add(plane);
                 });
             }
@@ -128,7 +129,7 @@ class SentryEngine {
     }
 
     toggleCapture(state) {
-        if (state) {
+        if (state && !this.watchID) {
             this.isCapturing = true;
             this.updateStatus("UPLINK_ACTIVE");
             this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), null, { enableHighAccuracy: true });
@@ -140,24 +141,26 @@ class SentryEngine {
 
     handleGPS(position) {
         if (!this.isCapturing) return;
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, altitude } = position.coords;
         
+        // On first lock, set origin and fetch map
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
-            this.updateMapTiles(latitude, longitude); // Load tiles on first lock
+            this.updateMapTiles(latitude, longitude);
         }
 
         document.getElementById('val-lat').innerText = latitude.toFixed(6);
         document.getElementById('val-lon').innerText = longitude.toFixed(6);
+        document.getElementById('val-alt').innerText = (altitude || 0).toFixed(1) + "m";
 
-        // Movement Logic
-        const x = (longitude - this.origin.lon) * this.scale;
-        const z = -(latitude - this.origin.lat) * this.scale;
-        this.avatar.position.set(x, 1, z);
+        // Map movement to 3D coordinate space
+        const xPos = (longitude - this.origin.lon) * this.scale;
+        const zPos = -(latitude - this.origin.lat) * this.scale;
+        this.avatar.position.set(xPos, 1, zPos);
     }
 
     reCenter() {
-        this.camera.position.set(this.avatar.position.x + 20, 20, this.avatar.position.z + 20);
+        this.camera.position.set(this.avatar.position.x + 25, 25, this.avatar.position.z + 25);
         this.camera.lookAt(this.avatar.position);
     }
 
@@ -166,17 +169,29 @@ class SentryEngine {
     animate() {
         requestAnimationFrame(() => this.animate());
         const time = performance.now() * 0.001;
-        this.avatar.position.y = 1 + Math.sin(time * 3) * 0.2;
+
+        // Avatar hover animation
+        this.avatar.position.y = 1.5 + Math.sin(time * 3) * 0.3;
         this.avatar.rotation.z += 0.02;
+
+        // Pulse Ring logic (0.4s)
         let pulse = (performance.now() % 400) / 400;
-        this.ring.scale.set(1 + pulse, 1 + pulse, 1);
+        this.ring.scale.set(1 + pulse * 1.5, 1 + pulse * 1.5, 1);
         this.ring.material.opacity = 1 - pulse;
         this.ring.position.set(this.avatar.position.x, 0.1, this.avatar.position.z);
+
         this.renderer.render(this.scene, this.camera);
     }
 }
 
 const engine = new SentryEngine();
+
+// Handle Resizing
+window.addEventListener('resize', () => {
+    engine.camera.aspect = window.innerWidth / window.innerHeight;
+    engine.camera.updateProjectionMatrix();
+    engine.renderer.setSize(window.innerWidth, window.innerHeight);
+});
 </script>
 </body>
 </html>
