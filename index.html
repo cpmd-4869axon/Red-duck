@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | BLUE_OPS v15.0</title>
+    <title>Sentry Node | BLUE_OPS v16.0</title>
     <style>
         :root { 
             --neon-blue: #00f2ff; 
@@ -35,7 +35,7 @@
 
 <div id="ui-overlay">
     <div id="main-panel" class="tactical-panel">
-        <div id="status-header">SENTRY // LIGHT_ENGINE_v15</div>
+        <div id="status-header">SENTRY // BLUE_OPS_v16</div>
         <div class="btn-grid">
             <button onclick="engine.toggleCapture(false)">Pause</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
@@ -84,17 +84,16 @@ class SentryEngine {
         this.controls.enableDamping = true;
         this.controls.enablePan = false;
 
-        // GLOBAL ILLUMINATION
+        // LIGHTING ENGINE
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 1.2);
         this.scene.add(hemiLight);
 
-        // TRACKING SPOTLIGHT
         this.trackingLight = new THREE.PointLight(0x00f2ff, 10, 800);
         this.scene.add(this.trackingLight);
     }
 
     initEntities() {
-        // EMISSIVE DIAMOND
+        // DIAMOND AVATAR
         const diamondGeo = new THREE.OctahedronGeometry(6, 0);
         this.diamondMat = new THREE.MeshStandardMaterial({ 
             color: 0x000000, 
@@ -109,6 +108,7 @@ class SentryEngine {
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
         
+        // PLOTTED SPHERES
         this.sphereGeo = new THREE.SphereGeometry(2.5, 16, 16);
         this.sphereMat = new THREE.MeshStandardMaterial({ 
             color: 0x00ffff, 
@@ -129,7 +129,7 @@ class SentryEngine {
 
         this.history.push({ time: new Date().toISOString(), lat: latitude, lon: longitude, acc: accuracy });
 
-        // Plot Sphere
+        // CREATE SOLID PLOT POINT
         const point = new THREE.Mesh(this.sphereGeo, this.sphereMat);
         point.position.set(tX, 1, tZ);
         this.scene.add(point);
@@ -155,7 +155,7 @@ class SentryEngine {
                 loader.load(url, (tex) => {
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ map: tex }));
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(x * 120, -5, y * 120); // Keep map well below objects
+                    plane.position.set(x * 120, -5, y * 120); 
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
                     this.tilesGroup.add(plane);
                 });
@@ -175,7 +175,7 @@ class SentryEngine {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Sentry_Log_${Date.now()}.csv`;
+        a.download = `Sentry_Log_v16_${Date.now()}.csv`;
         a.click();
     }
 
