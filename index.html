@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | NCH Auto-Capture v7.2</title>
+    <title>Sentry Node | NCH Blue-Ops v7.5</title>
     <style>
         :root { 
-            --neon: #00ff41; 
+            --neon-blue: #00ffff; /* The new tactical color */
             --warning: #ff3e3e;
             --bg: #020202; 
             --map-filter: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(6) hue-rotate(60deg);
         }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon-blue); }
         canvas { display: block; filter: contrast(1.2) brightness(1.1); }
 
         #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
 
         #main-panel {
             position: absolute; top: 20px; left: 20px; pointer-events: auto;
-            background: rgba(0, 10, 0, 0.9); padding: 15px; border: 1px solid var(--neon);
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2); width: 220px;
+            background: rgba(0, 5, 10, 0.9); padding: 15px; border: 1px solid var(--neon-blue);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); width: 220px;
         }
 
-        #status-header { font-size: 10px; border-bottom: 1px solid var(--neon); padding-bottom: 8px; margin-bottom: 10px; letter-spacing: 2px; color: #fff; }
+        #status-header { font-size: 10px; border-bottom: 1px solid var(--neon-blue); padding-bottom: 8px; margin-bottom: 10px; letter-spacing: 2px; color: #fff; }
 
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
         button {
-            background: transparent; color: var(--neon); border: 1px solid var(--neon);
+            background: transparent; color: var(--neon-blue); border: 1px solid var(--neon-blue);
             padding: 8px; cursor: pointer; text-transform: uppercase; font-size: 9px;
             font-weight: bold;
         }
-        button:active { background: var(--neon); color: #000; }
+        button:active { background: var(--neon-blue); color: #000; }
 
         #telemetry-box {
             position: absolute; top: 20px; right: 20px; font-size: 11px;
-            background: rgba(0, 10, 0, 0.9); padding: 12px; border-right: 4px solid var(--neon);
+            background: rgba(0, 5, 10, 0.9); padding: 12px; border-right: 4px solid var(--neon-blue);
             text-align: right;
         }
         .val { color: #fff; font-weight: bold; }
@@ -44,7 +44,7 @@
 
 <div id="ui-overlay">
     <div id="main-panel">
-        <div id="status-header">SYSTEM // STATUS: <span style="color:var(--neon)">ACTIVE</span></div>
+        <div id="status-bar">SENTRY NODE // MAP_MODE: BLUE_OPS</div>
         <div class="btn-grid">
             <button onclick="engine.toggleCapture(false)">Hold Link</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
@@ -95,7 +95,7 @@ class SentryEngine {
         this.controls.enableDamping = true;
 
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        this.light = new THREE.PointLight(0x00ff41, 2, 300);
+        this.light = new THREE.PointLight(0x00ffff, 2, 300); // Blue light
         this.scene.add(this.light);
     }
 
@@ -105,19 +105,19 @@ class SentryEngine {
 
         // Core Solid
         const coreGeo = new THREE.OctahedronGeometry(2.5, 0);
-        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ff41, emissiveIntensity: 0.5 });
+        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ffff, emissiveIntensity: 0.5 }); // Blue emissive
         this.core = new THREE.Mesh(coreGeo, coreMat);
         this.avatarGroup.add(this.core);
 
         // Outer Wireframe Shell
         const shellGeo = new THREE.OctahedronGeometry(3.0, 0);
-        const shellMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true, transparent: true, opacity: 0.8 });
+        const shellMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 }); // Blue wireframe
         this.shell = new THREE.Mesh(shellGeo, shellMat);
         this.avatarGroup.add(this.shell);
 
         // Data Protective Sphere
         const sphereGeo = new THREE.IcosahedronGeometry(6.5, 1);
-        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true, transparent: true, opacity: 0.15 });
+        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.15 }); // Blue sphere
         this.sphere = new THREE.Mesh(sphereGeo, this.sphereMat);
         this.avatarGroup.add(this.sphere);
 
@@ -125,7 +125,7 @@ class SentryEngine {
         this.scene.add(this.tilesGroup);
 
         this.trailGeo = new THREE.BufferGeometry();
-        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.5 }));
+        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 })); // Blue trail
         this.scene.add(this.trail);
     }
 
@@ -142,7 +142,6 @@ class SentryEngine {
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ map: tex }));
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(x * 120, 0, y * 120);
-                    // Automatic Green Ops Filter
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
                     this.tilesGroup.add(plane);
                 });
@@ -207,7 +206,7 @@ class SentryEngine {
         // Signal Feedback
         const s = 1 + (this.currentAcc / 40);
         this.sphere.scale.setScalar(s);
-        this.sphereMat.color.setHex(this.currentAcc > 15 ? 0xff3e3e : 0x00ff41);
+        this.sphereMat.color.setHex(this.currentAcc > 15 ? 0xff3e3e : 0x00ffff); // Red warning or blue stable
 
         this.light.position.set(this.avatarGroup.position.x, 15, this.avatarGroup.position.z);
         this.controls.update();
