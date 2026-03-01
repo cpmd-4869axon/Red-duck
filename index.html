@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node Alpha | OSINT-GPS</title>
+    <title>Sentry Node Alpha | Geo-Texture Mapping</title>
     <style>
         :root { --neon: #00ff41; --bg: #050505; }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
@@ -11,15 +11,11 @@
         #ui-panel {
             position: absolute; top: 15px; left: 15px; z-index: 100;
             display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
-            background: rgba(0, 20, 0, 0.85); padding: 12px; 
-            border: 1px solid var(--neon); border-radius: 2px;
-            box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
+            background: rgba(0, 20, 0, 0.9); padding: 12px; 
+            border: 1px solid var(--neon); box-shadow: 0 0 15px rgba(0, 255, 65, 0.2);
         }
 
-        #status-bar {
-            grid-column: span 2; font-size: 10px; border-bottom: 1px solid var(--neon);
-            padding-bottom: 6px; margin-bottom: 6px; letter-spacing: 1px;
-        }
+        #status-bar { grid-column: span 2; font-size: 10px; border-bottom: 1px solid var(--neon); padding-bottom: 6px; margin-bottom: 6px; }
 
         button {
             background: transparent; color: var(--neon); border: 1px solid var(--neon);
@@ -27,33 +23,24 @@
             transition: all 0.2s; font-weight: bold;
         }
 
-        button:hover { background: var(--neon); color: #000; box-shadow: 0 0 10px var(--neon); }
-        button:active { transform: scale(0.95); }
+        button:hover { background: var(--neon); color: #000; }
 
         #data-readout {
             position: absolute; top: 15px; right: 15px; font-size: 11px;
             background: rgba(0,0,0,0.8); padding: 10px; border-left: 2px solid var(--neon);
-            pointer-events: none;
-        }
-
-        #inspector {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 10, 0, 0.9); border: 1px solid var(--neon);
-            padding: 20px; display: none; z-index: 1000; text-align: center;
         }
     </style>
 </head>
 <body>
 
 <div id="ui-panel">
-    <div id="status-bar">SYSTEM STATUS: LINK_IDLE</div>
+    <div id="status-bar">SYSTEM STATUS: MAPPING_READY</div>
     <button onclick="engine.toggleCapture(true)">Start</button>
     <button onclick="engine.toggleCapture(false)">Pause</button>
     <button onclick="engine.stop()">Stop</button>
     <button onclick="engine.export()">Export</button>
-    <button onclick="document.getElementById('importFile').click()">Import</button>
     <button onclick="engine.clear()">Clear</button>
-    <button onclick="engine.reCenter()" style="grid-column: span 2;">Sync Camera (45°)</button>
+    <button onclick="engine.reCenter()" style="background: var(--neon); color: #000;">Sync Camera (45°)</button>
 </div>
 
 <div id="data-readout">
@@ -62,22 +49,17 @@
     ALT: <span id="val-alt">0.0m</span>
 </div>
 
-<div id="inspector" onclick="this.style.display='none'"></div>
-<input type="file" id="importFile" hidden onchange="engine.import(event)">
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-/**
- * SENTRY NODE ENGINE - ADVANCED GEOSPATIAL 3.0
- */
 class SentryEngine {
     constructor() {
         this.data = [];
         this.isCapturing = false;
         this.watchID = null;
-        this.origin = null; // Set on first GPS lock for local relative scaling
-        this.scale = 200000; // Earth scale factor for local movement visibility
+        this.origin = null;
+        this.scale = 200000;
+        this.zoom = 18; // Leaflet zoom level for tile detail
         
         this.initScene();
         this.initObjects();
@@ -91,65 +73,65 @@ class SentryEngine {
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(this.renderer.domElement);
-
-        // Lighting for 3D depth
-        const light = new THREE.PointLight(0x00ff41, 1, 100);
-        light.position.set(0, 20, 0);
-        this.scene.add(light);
     }
 
     initObjects() {
-        // Advanced Avatar (Pyramid)
+        // Avatar (Triangle/Pyramid)
         const geometry = new THREE.CylinderGeometry(0, 0.8, 1.5, 4, 1);
         const material = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true });
         this.avatar = new THREE.Mesh(geometry, material);
         this.avatar.rotation.x = Math.PI / 2;
         this.scene.add(this.avatar);
 
-        // Pulsing Ring (0.4s focus)
+        // Pulsing Ring
         const ringGeo = new THREE.RingGeometry(0.9, 1.1, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
         this.ring = new THREE.Mesh(ringGeo, ringMat);
         this.ring.rotation.x = Math.PI / 2;
         this.scene.add(this.ring);
 
-        // Path Line (BufferGeometry for performance)
-        this.pathPositions = [];
-        this.pathMaterial = new THREE.LineBasicMaterial({ color: 0x00ff41, opacity: 0.5, transparent: true });
-        this.pathLine = new THREE.Line(new THREE.BufferGeometry(), this.pathMaterial);
-        this.scene.add(this.pathLine);
-
-        this.generateGrid();
+        // The 3x3 Tile Floor
+        this.tilesGroup = new THREE.Group();
+        this.scene.add(this.tilesGroup);
     }
 
-    generateGrid() {
-        const size = 1000;
-        const divisions = 50;
-        const grid = new THREE.GridHelper(size, divisions, 0x003300, 0x001100);
-        this.scene.add(grid);
+    // Convert GPS to OSM Tile Coordinates
+    lon2tile(lon, zoom) { return Math.floor((lon + 180) / 360 * Math.pow(2, zoom)); }
+    lat2tile(lat, zoom) {
+        return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
     }
 
-    // --- Core Logic ---
+    async updateMapTiles(lat, lon) {
+        this.tilesGroup.clear();
+        const xCenter = this.lon2tile(lon, this.zoom);
+        const yCenter = this.lat2tile(lat, this.zoom);
+        const loader = new THREE.TextureLoader();
+        const tileSize = 40; // Size of plane in 3D units
 
-    gpsToVector(lat, lon) {
-        if (!this.origin) this.origin = { lat, lon };
-        // Mercator Approximation for small local areas
-        const x = (lon - this.origin.lon) * Math.cos(lat * Math.PI / 180) * this.scale;
-        const z = -(lat - this.origin.lat) * this.scale;
-        return new THREE.Vector3(x, 0.5, z);
+        for (let xOff = -1; xOff <= 1; xOff++) {
+            for (let yOff = -1; yOff <= 1; yOff++) {
+                const x = xCenter + xOff;
+                const y = yCenter + yOff;
+                // OpenStreetMap Tile URL
+                const url = `https://tile.openstreetmap.org/${this.zoom}/${x}/${y}.png`;
+                
+                loader.load(url, (texture) => {
+                    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.7 });
+                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(tileSize, tileSize), material);
+                    plane.rotation.x = -Math.PI / 2;
+                    plane.position.set(xOff * tileSize, -0.1, yOff * tileSize);
+                    this.tilesGroup.add(plane);
+                });
+            }
+        }
     }
 
     toggleCapture(state) {
-        if (state && !this.watchID) {
+        if (state) {
             this.isCapturing = true;
             this.updateStatus("UPLINK_ACTIVE");
-            this.watchID = navigator.geolocation.watchPosition(
-                (pos) => this.handleGPS(pos),
-                (err) => this.updateStatus("ERR: " + err.message),
-                { enableHighAccuracy: true }
-            );
+            this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), null, { enableHighAccuracy: true });
         } else {
             this.isCapturing = false;
             this.updateStatus("UPLINK_PAUSED");
@@ -158,118 +140,43 @@ class SentryEngine {
 
     handleGPS(position) {
         if (!this.isCapturing) return;
-
-        const { latitude, longitude, altitude } = position.coords;
-        const vec = this.gpsToVector(latitude, longitude);
+        const { latitude, longitude } = position.coords;
         
-        // Update Readout
+        if (!this.origin) {
+            this.origin = { lat: latitude, lon: longitude };
+            this.updateMapTiles(latitude, longitude); // Load tiles on first lock
+        }
+
         document.getElementById('val-lat').innerText = latitude.toFixed(6);
         document.getElementById('val-lon').innerText = longitude.toFixed(6);
-        document.getElementById('val-alt').innerText = (altitude || 0).toFixed(1) + "m";
 
-        const timestamp = new Date().toLocaleTimeString();
-        const dataPoint = { time: timestamp, lat: latitude, lon: longitude, alt: altitude, vec: vec.clone() };
-        
-        this.data.push(dataPoint);
-        this.dropSphere(dataPoint);
-        this.updatePath(vec);
-        
-        // Move Avatar
-        this.avatar.position.lerp(vec, 0.1); 
-    }
-
-    dropSphere(point) {
-        const geo = new THREE.IcosahedronGeometry(0.3, 1);
-        const mat = new THREE.MeshPhongMaterial({ color: 0x00ff41, wireframe: true });
-        const sphere = new THREE.Mesh(geo, mat);
-        sphere.position.copy(point.vec);
-        sphere.userData = point;
-        this.scene.add(sphere);
-    }
-
-    updatePath(newPos) {
-        this.pathPositions.push(newPos.x, newPos.y, newPos.z);
-        this.pathLine.geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.pathPositions, 3));
+        // Movement Logic
+        const x = (longitude - this.origin.lon) * this.scale;
+        const z = -(latitude - this.origin.lat) * this.scale;
+        this.avatar.position.set(x, 1, z);
     }
 
     reCenter() {
-        // Calculate 45-degree isometric view
-        const distance = 25;
-        this.camera.position.set(
-            this.avatar.position.x + distance,
-            this.avatar.position.y + distance,
-            this.avatar.position.z + distance
-        );
+        this.camera.position.set(this.avatar.position.x + 20, 20, this.avatar.position.z + 20);
         this.camera.lookAt(this.avatar.position);
     }
 
-    // --- Utilities ---
-
-    updateStatus(msg) {
-        document.getElementById('status-bar').innerText = `SYSTEM STATUS: ${msg}`;
-    }
-
-    export() {
-        let csv = "Time,Lat,Lon,Alt\n" + this.data.map(d => `${d.time},${d.lat},${d.lon},${d.alt}`).join("\n");
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `SENTRY_LOG_${Date.now()}.csv`;
-        a.click();
-    }
-
-    clear() {
-        this.data = [];
-        this.pathPositions = [];
-        this.pathLine.geometry.dispose();
-        this.pathLine.geometry = new THREE.BufferGeometry();
-        this.scene.children.filter(c => c.geometry?.type === "IcosahedronGeometry").forEach(c => this.scene.remove(c));
-        this.updateStatus("MEMORY_WIPED");
-    }
+    updateStatus(msg) { document.getElementById('status-bar').innerText = `SYSTEM STATUS: ${msg}`; }
 
     animate() {
         requestAnimationFrame(() => this.animate());
         const time = performance.now() * 0.001;
-
-        // Avatar hover
         this.avatar.position.y = 1 + Math.sin(time * 3) * 0.2;
         this.avatar.rotation.z += 0.02;
-
-        // Pulse Ring logic (0.4s cycle)
         let pulse = (performance.now() % 400) / 400;
-        this.ring.scale.set(1 + pulse * 1.5, 1 + pulse * 1.5, 1);
+        this.ring.scale.set(1 + pulse, 1 + pulse, 1);
         this.ring.material.opacity = 1 - pulse;
         this.ring.position.set(this.avatar.position.x, 0.1, this.avatar.position.z);
-
         this.renderer.render(this.scene, this.camera);
     }
 }
 
-// Global Engine Instance
 const engine = new SentryEngine();
-
-// Handle Window Resize
-window.addEventListener('resize', () => {
-    engine.camera.aspect = window.innerWidth / window.innerHeight;
-    engine.camera.updateProjectionMatrix();
-    engine.renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Click to Inspect Spheres
-window.addEventListener('mousedown', (e) => {
-    const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, engine.camera);
-    const intersects = raycaster.intersectObjects(engine.scene.children);
-    
-    const hit = intersects.find(i => i.object.geometry?.type === "IcosahedronGeometry");
-    if (hit) {
-        const d = hit.object.userData;
-        const ins = document.getElementById('inspector');
-        ins.style.display = 'block';
-        ins.innerHTML = `NODE_REPORT<br>T: ${d.time}<br>LAT: ${d.lat}<br>LON: ${d.lon}<br>ALT: ${d.alt}`;
-    }
-});
 </script>
 </body>
 </html>
