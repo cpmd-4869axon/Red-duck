@@ -3,71 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | BLUE_OPS v21.0</title>
+    <title>Sentry Node | BLUE_OPS v21.1</title>
     <style>
         :root { 
-            --neon-blue: #00f2ff; 
-            --highlighter: #00ffff;
-            --danger: #ff0055;
-            --bg: #000508; 
-            --panel-bg: rgba(0, 10, 15, 0.85);
+            --neon-blue: #00b4d8; 
+            --highlighter: #90e0ef;
+            --danger: #9d0208;
+            --bg: #00080a; 
+            --panel-bg: rgba(0, 5, 8, 0.9);
         }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', 'Courier New', monospace; color: var(--neon-blue); }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', monospace; color: var(--neon-blue); }
         
         #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
         
         .tactical-panel {
             pointer-events: auto; background: var(--panel-bg); 
-            border: 1px solid rgba(0, 242, 255, 0.3); box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(12px); border-radius: 4px; padding: 15px;
+            border: 1px solid rgba(0, 180, 216, 0.2); 
+            backdrop-filter: blur(10px); border-radius: 2px; padding: 15px;
         }
 
-        /* HEADER UI */
         .top-row { display: flex; justify-content: space-between; align-items: flex-start; }
-        #status-header { font-size: 12px; font-weight: 900; letter-spacing: 3px; border-left: 3px solid var(--neon-blue); padding-left: 10px; margin-bottom: 15px; }
+        #status-header { font-size: 11px; font-weight: 900; letter-spacing: 2px; border-left: 2px solid var(--neon-blue); padding-left: 8px; margin-bottom: 15px; opacity: 0.8; }
         
-        /* DATA TERMINAL */
-        #terminal { font-size: 9px; height: 80px; overflow-y: hidden; color: rgba(0, 242, 255, 0.7); margin-top: 10px; border-top: 1px solid rgba(0, 242, 255, 0.1); padding-top: 5px; }
+        #terminal { font-size: 9px; height: 60px; overflow-y: hidden; color: rgba(144, 224, 239, 0.5); margin-top: 10px; border-top: 1px solid rgba(0, 180, 216, 0.1); padding-top: 5px; }
         
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         button {
-            background: rgba(0, 242, 255, 0.05); color: var(--highlighter); border: 1px solid var(--neon-blue);
-            padding: 10px; cursor: pointer; text-transform: uppercase; font-size: 10px; font-weight: bold;
-            transition: 0.2s; clip-path: polygon(0 0, 90% 0, 100% 30%, 100% 100%, 10% 100%, 0 70%);
+            background: rgba(0, 180, 216, 0.03); color: var(--highlighter); border: 1px solid rgba(0, 180, 216, 0.3);
+            padding: 8px; cursor: pointer; text-transform: uppercase; font-size: 9px; font-weight: bold;
+            clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
         }
-        button:hover { background: rgba(0, 242, 255, 0.2); }
+        button:hover { background: rgba(0, 180, 216, 0.1); border-color: var(--neon-blue); }
         button:active { background: var(--neon-blue); color: #000; }
 
-        .telemetry-item { margin-bottom: 4px; font-size: 11px; display: flex; justify-content: space-between; width: 180px; }
-        .val { color: #fff; font-family: 'Courier New'; font-weight: bold; }
-
-        /* SCANNER ANIMATION */
-        .scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: rgba(0, 242, 255, 0.5); animation: scan 4s linear infinite; pointer-events: none; }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .telemetry-item { margin-bottom: 4px; font-size: 10px; display: flex; justify-content: space-between; width: 160px; opacity: 0.7; }
+        .val { color: #ade8f4; font-family: 'Courier New'; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="scan-line"></div>
 <div id="ui-overlay">
     <div class="top-row">
-        <div id="main-panel" class="tactical-panel" style="width: 260px;">
-            <div id="status-header">SENTRY // SYSTEM_ACTIVE_V21</div>
+        <div id="main-panel" class="tactical-panel" style="width: 240px;">
+            <div id="status-header">SENTRY // DIM_MODE_v21.1</div>
             <div class="btn-grid">
                 <button onclick="engine.toggleCapture(true)">Connect</button>
                 <button onclick="engine.toggleCapture(false)">Disconnect</button>
-                <button style="grid-column: span 2;" onclick="engine.exportCSV()">Download Telemetry .CSV</button>
+                <button style="grid-column: span 2;" onclick="engine.exportCSV()">Export Telemetry</button>
                 <button onclick="engine.reCenter()">Sync Camera</button>
-                <button onclick="engine.clearTrail()" style="color: var(--danger); border-color: var(--danger);">Purge</button>
+                <button onclick="engine.clearTrail()" style="color: #ff4d4d; border-color: #590000;">Purge</button>
             </div>
-            <div id="terminal">Initializing encrypted uplink...<br>Awaiting GPS handshake...</div>
+            <div id="terminal">System dimmed for low-light ops...<br>Awaiting handshake...</div>
         </div>
 
         <div id="telemetry-box" class="tactical-panel">
             <div class="telemetry-item">NODES: <span id="val-count" class="val">0</span></div>
             <div class="telemetry-item">LAT: <span id="val-lat" class="val">0.0000</span></div>
             <div class="telemetry-item">LON: <span id="val-lon" class="val">0.0000</span></div>
-            <div class="telemetry-item">ACCURACY: <span id="val-acc" class="val">0</span>m</div>
+            <div class="telemetry-item">ACC: <span id="val-acc" class="val">0</span>m</div>
         </div>
     </div>
 </div>
@@ -87,7 +80,6 @@ class SentryEngine {
         this.initCore();
         this.initEntities();
         this.animate();
-        this.log("V21 Kernel Loaded.");
     }
 
     log(msg) {
@@ -97,10 +89,10 @@ class SentryEngine {
 
     initCore() {
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x000508, 0.001);
+        this.scene.fog = new THREE.FogExp2(0x00080a, 0.0015);
 
         this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, 200000);
-        this.camera.position.set(0, 600, 400);
+        this.camera.position.set(0, 500, 350);
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -109,47 +101,39 @@ class SentryEngine {
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
 
-        const ambient = new THREE.AmbientLight(0x404040, 2);
+        // SUBDUED LIGHTING
+        const ambient = new THREE.AmbientLight(0x404040, 0.8); 
         this.scene.add(ambient);
 
-        this.pointLight = new THREE.PointLight(0x00f2ff, 20, 1000);
+        this.pointLight = new THREE.PointLight(0x00b4d8, 4, 800); // Intensity lowered from 20 to 4
         this.scene.add(this.pointLight);
 
-        // Advanced Grid
-        const grid = new THREE.GridHelper(5000, 50, 0x00f2ff, 0x002222);
-        grid.material.opacity = 0.2;
+        const grid = new THREE.GridHelper(5000, 60, 0x003344, 0x001111);
+        grid.material.opacity = 0.15;
         grid.material.transparent = true;
         this.scene.add(grid);
     }
 
     initEntities() {
-        // Advanced Shader Core (Pulse Diamond)
-        const geo = new THREE.IcosahedronGeometry(12, 0);
+        const geo = new THREE.IcosahedronGeometry(10, 0);
         this.coreMat = new THREE.MeshStandardMaterial({
-            color: 0x00f2ff,
-            emissive: 0x00f2ff,
-            emissiveIntensity: 2,
+            color: 0x00b4d8,
+            emissive: 0x00b4d8,
+            emissiveIntensity: 0.4, // Lowered from 2
             wireframe: true
         });
         this.core = new THREE.Mesh(geo, this.coreMat);
         this.scene.add(this.core);
 
-        // Radar Ring
-        const ringGeo = new THREE.RingGeometry(30, 32, 32);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+        const ringGeo = new THREE.RingGeometry(25, 26, 32);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x00b4d8, transparent: true, opacity: 0.2 });
         this.radar = new THREE.Mesh(ringGeo, ringMat);
         this.radar.rotation.x = Math.PI / 2;
         this.scene.add(this.radar);
 
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
-
-        this.pathLineGeo = new THREE.BufferGeometry();
-        this.pathLineMat = new THREE.LineBasicMaterial({ color: 0x00ffff });
-        this.pathLine = new THREE.Line(this.pathLineGeo, this.pathLineMat);
-        this.scene.add(this.pathLine);
     }
 
     handleGPS(pos) {
@@ -157,7 +141,7 @@ class SentryEngine {
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
             this.updateMap(latitude, longitude);
-            this.log("Initial Handshake Confirmed.");
+            this.log("Handshake stable.");
         }
 
         const tX = (longitude - this.origin.lon) * this.scale;
@@ -165,27 +149,22 @@ class SentryEngine {
 
         this.history.push({ lat: latitude, lon: longitude, time: new Date().toLocaleTimeString() });
 
-        // Add Marker
         const marker = new THREE.Mesh(
-            new THREE.BoxGeometry(4, 4, 4),
-            new THREE.MeshBasicMaterial({ color: 0xffffff })
+            new THREE.BoxGeometry(3, 3, 3),
+            new THREE.MeshBasicMaterial({ color: 0x00b4d8, transparent: true, opacity: 0.6 })
         );
-        marker.position.set(tX, 2, tZ);
+        marker.position.set(tX, 1, tZ);
         this.scene.add(marker);
         this.spheres.push(marker);
 
-        // Update UI
         document.getElementById('val-lat').innerText = latitude.toFixed(4);
         document.getElementById('val-lon').innerText = longitude.toFixed(4);
         document.getElementById('val-acc').innerText = Math.round(accuracy);
         document.getElementById('val-count').innerText = this.history.length;
 
-        // Move Core
-        this.core.position.set(tX, 30, tZ);
-        this.radar.position.set(tX, 1, tZ);
-        this.pointLight.position.set(tX, 50, tZ);
-
-        if(this.history.length % 5 === 0) this.log(`Signal stable: ${accuracy}m accuracy`);
+        this.core.position.set(tX, 25, tZ);
+        this.radar.position.set(tX, 0.5, tZ);
+        this.pointLight.position.set(tX, 40, tZ);
     }
 
     updateMap(lat, lon) {
@@ -201,13 +180,14 @@ class SentryEngine {
                 loader.load(url, (tex) => {
                     const mat = new THREE.MeshStandardMaterial({ 
                         map: tex, 
-                        color: 0x0066ff, // Blue tint
-                        emissive: 0x002244,
-                        emissiveIntensity: 0.5
+                        color: 0x002233, // Much darker blue tint
+                        emissive: 0x000000,
+                        metalness: 0.1,
+                        roughness: 0.9
                     });
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), mat);
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(x * 300, 0, y * 300);
+                    plane.position.set(x * 300, -1, y * 300);
                     this.tilesGroup.add(plane);
                 });
             }
@@ -217,17 +197,16 @@ class SentryEngine {
     toggleCapture(state) {
         if(state && !this.isCapturing) {
             this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), null, { enableHighAccuracy: true });
-            this.log("Uplink Established.");
+            this.log("Uplink active.");
         } else {
             navigator.geolocation.clearWatch(this.watchID);
-            this.log("Uplink Terminated.");
+            this.log("Uplink paused.");
         }
         this.isCapturing = state;
     }
 
     reCenter() {
         this.controls.target.copy(this.core.position);
-        this.log("Optics Recalibrated.");
     }
 
     exportCSV() {
@@ -236,21 +215,26 @@ class SentryEngine {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `SENTRY_LOG_${Date.now()}.csv`;
+        link.download = `SENTRY_DIM_LOG.csv`;
         link.click();
+    }
+
+    clearTrail() {
+        this.spheres.forEach(s => this.scene.remove(s));
+        this.spheres = [];
+        this.history = [];
+        this.log("Logs purged.");
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        const time = Date.now() * 0.002;
+        const time = Date.now() * 0.0015;
 
-        this.core.rotation.y += 0.02;
-        this.core.rotation.z += 0.01;
-        this.core.position.y = 30 + Math.sin(time) * 5;
-        this.coreMat.emissiveIntensity = 2 + Math.sin(time * 2);
-
-        this.radar.scale.set(1 + Math.sin(time) * 0.5, 1 + Math.sin(time) * 0.5, 1);
-        this.radar.material.opacity = 0.5 - (Math.sin(time) * 0.2);
+        this.core.rotation.y += 0.01;
+        this.core.position.y = 25 + Math.sin(time) * 3;
+        
+        this.radar.scale.set(1 + Math.sin(time) * 0.3, 1 + Math.sin(time) * 0.3, 1);
+        this.radar.material.opacity = 0.2 - (Math.sin(time) * 0.1);
 
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
