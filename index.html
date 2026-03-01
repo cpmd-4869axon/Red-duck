@@ -3,44 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node | NCH Advanced Tactical</title>
+    <title>Sentry Node | NCH Data Sphere v5</title>
     <style>
-        :root { --neon: #00ff41; --bg: #050505; --dark-glow: rgba(0, 255, 65, 0.15); }
+        :root { --neon: #00ff41; --bg: #050505; --map-green: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(5) hue-rotate(70deg); }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
         
+        .leaflet-tile-container { filter: var(--map-green); }
+
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
         #ui-panel {
             position: absolute; top: 15px; left: 15px; pointer-events: auto;
             display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
             background: rgba(0, 15, 0, 0.9); padding: 15px; 
-            border: 1px solid var(--neon); box-shadow: 0 0 25px var(--dark-glow);
+            border: 1px solid var(--neon); box-shadow: 0 0 25px rgba(0, 255, 65, 0.2);
         }
 
-        #status-bar { grid-column: span 2; font-size: 11px; border-bottom: 1px solid var(--neon); padding-bottom: 8px; margin-bottom: 8px; letter-spacing: 1px; }
+        #status-bar { grid-column: span 2; font-size: 11px; border-bottom: 1px solid var(--neon); padding-bottom: 8px; margin-bottom: 8px; }
 
         button {
             background: transparent; color: var(--neon); border: 1px solid var(--neon);
             padding: 8px; cursor: pointer; text-transform: uppercase; font-size: 10px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 900;
+            font-weight: 900;
         }
 
-        button:hover { background: var(--neon); color: #000; box-shadow: 0 0 15px var(--neon); }
+        button:active { background: var(--neon); color: #000; }
 
         #telemetry {
             position: absolute; top: 15px; right: 15px; font-size: 11px;
             background: rgba(0, 5, 0, 0.85); padding: 12px; border-left: 3px solid var(--neon);
-            text-align: right; line-height: 1.6;
+            text-align: right;
         }
-
-        .label { color: rgba(0, 255, 65, 0.5); font-size: 9px; margin-right: 5px; }
     </style>
 </head>
 <body>
 
 <div id="ui-layer">
     <div id="ui-panel">
-        <div id="status-bar">SENTRY NODE // PRECISION: <span id="val-acc">LOW</span></div>
+        <div id="status-bar">SENTRY NODE // SPHERE_SYNC: <span id="sync-val">ACTIVE</span></div>
         <button onclick="engine.toggleCapture(true)">Connect</button>
         <button onclick="engine.toggleCapture(false)">Pause</button>
         <button onclick="engine.reCenter()" style="background: var(--neon); color: #000; grid-column: span 2;">SYNC TACTICAL VIEW (45°)</button>
@@ -49,9 +49,9 @@
     </div>
 
     <div id="telemetry">
-        <span class="label">LAT:</span><span id="val-lat">---</span><br>
-        <span class="label">LON:</span><span id="val-lon">---</span><br>
-        <span class="label">ALT:</span><span id="val-alt">---</span>
+        LAT: <span id="val-lat">---</span><br>
+        LON: <span id="val-lon">---</span><br>
+        ACC: <span id="val-acc">---</span>
     </div>
 </div>
 
@@ -67,6 +67,7 @@ class SentryEngine {
         this.zoom = 19;
         this.tileSize = 120;
         this.pathPoints = [];
+        this.currentAccuracy = 0;
         
         this.initScene();
         this.initEntities();
@@ -76,54 +77,47 @@ class SentryEngine {
     initScene() {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        this.camera.position.set(80, 80, 80); // Initial 45 degree Tactical View
+        this.camera.position.set(80, 80, 80); 
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(this.renderer.domElement);
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
 
-        // Dynamic Lighting
-        this.ambient = new THREE.AmbientLight(0xffffff, 0.4);
-        this.scene.add(this.ambient);
-
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
         this.spotlight = new THREE.PointLight(0x00ff41, 2, 300);
         this.scene.add(this.spotlight);
     }
 
     initEntities() {
         // DIAMOND CORE
-        const coreGeo = new THREE.OctahedronGeometry(2.5, 0);
-        const coreMat = new THREE.MeshPhongMaterial({ 
-            color: 0x000000, 
-            emissive: 0x00ff41, 
-            emissiveIntensity: 0.5,
-            shininess: 100 
-        });
+        const coreGeo = new THREE.OctahedronGeometry(2.2, 0);
+        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ff41, shininess: 100 });
         this.avatar = new THREE.Mesh(coreGeo, coreMat);
         this.scene.add(this.avatar);
 
-        // DIAMOND OUTER WIRE (Visual Upgrade)
-        const wireGeo = new THREE.OctahedronGeometry(3.5, 0);
-        const wireMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, wireframe: true, transparent: true, opacity: 0.2 });
-        this.avatarWire = new THREE.Mesh(wireGeo, wireMat);
-        this.avatar.add(this.avatarWire);
+        // DATA SPHERE (Wireframe Icosahedron)
+        const sphereGeo = new THREE.IcosahedronGeometry(4.5, 1);
+        const sphereMat = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff41, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.15 
+        });
+        this.dataSphere = new THREE.Mesh(sphereGeo, sphereMat);
+        this.avatar.add(this.dataSphere); // Attach to avatar so it moves together
 
-        // Pulsing Target Ring
+        // Pulsing Ring
         const ringGeo = new THREE.RingGeometry(3, 3.5, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
         this.ring = new THREE.Mesh(ringGeo, ringMat);
         this.ring.rotation.x = -Math.PI / 2;
         this.scene.add(this.ring);
 
-        // Path / Breadcrumb Line
-        this.trailMaterial = new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.8 });
         this.trailGeometry = new THREE.BufferGeometry();
-        this.trail = new THREE.Line(this.trailGeometry, this.trailMaterial);
+        this.trail = new THREE.Line(this.trailGeometry, new THREE.LineBasicMaterial({ color: 0x00ff41, transparent: true, opacity: 0.6 }));
         this.scene.add(this.trail);
 
         this.tilesGroup = new THREE.Group();
@@ -140,10 +134,8 @@ class SentryEngine {
             for (let yOff = -1; yOff <= 1; yOff++) {
                 const url = `https://tile.openstreetmap.org/${this.zoom}/${xC + xOff}/${yC + yOff}.png`;
                 loader.load(url, (tex) => {
-                    const plane = new THREE.Mesh(
-                        new THREE.PlaneGeometry(this.tileSize, this.tileSize),
-                        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.85 })
-                    );
+                    const planeMat = new THREE.MeshBasicMaterial({ map: tex });
+                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(this.tileSize, this.tileSize), planeMat);
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(xOff * this.tileSize, 0, yOff * this.tileSize);
                     this.tilesGroup.add(plane);
@@ -155,11 +147,7 @@ class SentryEngine {
     toggleCapture(state) {
         if (state) {
             this.isCapturing = true;
-            this.watchID = navigator.geolocation.watchPosition(
-                (p) => this.handleUpdate(p), 
-                null, 
-                { enableHighAccuracy: true, maximumAge: 0 }
-            );
+            this.watchID = navigator.geolocation.watchPosition((p) => this.handleUpdate(p), null, { enableHighAccuracy: true });
         } else {
             this.isCapturing = false;
             navigator.geolocation.clearWatch(this.watchID);
@@ -167,8 +155,8 @@ class SentryEngine {
     }
 
     handleUpdate(pos) {
-        const { latitude, longitude, accuracy, altitude } = pos.coords;
-        if (accuracy > 25) return; // Ignore indoor jitter
+        const { latitude, longitude, accuracy } = pos.coords;
+        this.currentAccuracy = accuracy;
 
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
@@ -179,66 +167,50 @@ class SentryEngine {
         document.getElementById('val-lat').innerText = latitude.toFixed(6);
         document.getElementById('val-lon').innerText = longitude.toFixed(6);
         document.getElementById('val-acc').innerText = accuracy.toFixed(0) + "m";
-        document.getElementById('val-alt').innerText = (altitude || 0).toFixed(1) + "m";
 
-        const targetX = (longitude - this.origin.lon) * this.scale;
-        const targetZ = -(latitude - this.origin.lat) * this.scale;
+        const tX = (longitude - this.origin.lon) * this.scale;
+        const tZ = -(latitude - this.origin.lat) * this.scale;
         
-        // Add to Path
-        this.pathPoints.push(new THREE.Vector3(targetX, 0.5, targetZ));
-        if (this.pathPoints.length > 500) this.pathPoints.shift();
+        this.pathPoints.push(new THREE.Vector3(tX, 0.5, tZ));
         this.trailGeometry.setFromPoints(this.pathPoints);
-        
-        // SMOOTH MOVEMENT INTERPOLATION
-        this.avatar.userData.target = new THREE.Vector3(targetX, 5, targetZ);
+        this.avatar.userData.target = new THREE.Vector3(tX, 5, tZ);
     }
 
-    clearTrail() {
-        this.pathPoints = [];
-        this.trailGeometry.setFromPoints([]);
-    }
+    clearTrail() { this.pathPoints = []; this.trailGeometry.setFromPoints([]); }
 
     reCenter() {
-        const dist = 100;
-        this.camera.position.set(this.avatar.position.x + dist, dist, this.avatar.position.z + dist);
+        const d = 100;
+        this.camera.position.set(this.avatar.position.x + d, d, this.avatar.position.z + d);
         this.controls.target.copy(this.avatar.position);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
+        if (this.avatar.userData.target) this.avatar.position.lerp(this.avatar.userData.target, 0.05);
+
         const time = performance.now() * 0.001;
 
-        // Smooth Follow logic
-        if (this.avatar.userData.target) {
-            this.avatar.position.lerp(this.avatar.userData.target, 0.08);
-        }
-
-        // Diamond VFX
-        this.avatar.position.y += Math.sin(time * 2) * 0.02;
+        // Diamond & Sphere Rotations
         this.avatar.rotation.y += 0.02;
-        this.avatarWire.rotation.x += 0.01;
-        this.avatarWire.rotation.z -= 0.01;
+        this.dataSphere.rotation.x += 0.01;
+        this.dataSphere.rotation.z += 0.01;
 
-        // Pulse FX
-        let pulse = (performance.now() % 1000) / 1000;
-        this.ring.scale.set(1.2 + pulse * 2, 1.2 + pulse * 2, 1);
-        this.ring.material.opacity = 1 - pulse;
+        // Scale Data Sphere based on signal accuracy (tightens when accurate)
+        const scaleFactor = 1 + (this.currentAccuracy / 30);
+        this.dataSphere.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        this.dataSphere.material.opacity = 0.1 + Math.sin(time * 2) * 0.05;
+
+        let p = (performance.now() % 1000) / 1000;
+        this.ring.scale.set(1.5 + p * 2.5, 1.5 + p * 2.5, 1);
+        this.ring.material.opacity = 1 - p;
         this.ring.position.set(this.avatar.position.x, 0.2, this.avatar.position.z);
-
-        // Light follow
         this.spotlight.position.set(this.avatar.position.x, 15, this.avatar.position.z);
 
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
 }
-
 const engine = new SentryEngine();
-window.addEventListener('resize', () => {
-    engine.camera.aspect = window.innerWidth / window.innerHeight;
-    engine.camera.updateProjectionMatrix();
-    engine.renderer.setSize(window.innerWidth, window.innerHeight);
-});
 </script>
 </body>
 </html>
