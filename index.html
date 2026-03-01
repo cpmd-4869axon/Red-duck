@@ -3,52 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | BLUE_OPS v28.0</title>
+    <title>Sentry Node | BLUE_OPS v29.0</title>
     <style>
         :root { 
             --accent: #ffae00; 
             --packet: #00ff66;
             --bg: #050505; 
-            --panel-bg: rgba(0, 0, 0, 0.9);
+            --panel-bg: rgba(0, 0, 0, 0.95);
             --text-main: #ffffff;
+            --danger: #ff4444;
         }
-        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', sans-serif; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', sans-serif; color: var(--text-main); }
+        
         #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; display: flex; flex-direction: column; justify-content: space-between; padding: 15px; }
         
         .tactical-panel {
             pointer-events: auto; background: var(--panel-bg); 
             border: 1px solid var(--accent); 
-            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
             padding: 15px; border-radius: 4px;
+            backdrop-filter: blur(10px);
         }
 
         #status-header { 
-            font-size: 12px; font-weight: 900; letter-spacing: 2px; 
-            color: var(--accent); border-bottom: 1px solid rgba(255, 174, 0, 0.3);
-            padding-bottom: 8px; margin-bottom: 12px;
+            font-size: 11px; font-weight: 900; letter-spacing: 2px; 
+            color: var(--accent); border-bottom: 1px solid rgba(255, 174, 0, 0.2);
+            padding-bottom: 8px; margin-bottom: 12px; text-transform: uppercase;
         }
 
-        .telemetry-item { margin-bottom: 6px; font-size: 11px; display: flex; justify-content: space-between; width: 200px; color: #bbbbbb; }
+        .telemetry-item { margin-bottom: 6px; font-size: 10px; display: flex; justify-content: space-between; width: 190px; color: #888; }
         .val { color: var(--text-main); font-family: 'Consolas', monospace; font-weight: bold; }
         
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
         button {
-            background: rgba(255, 174, 0, 0.1); color: var(--accent); border: 1px solid var(--accent);
-            padding: 10px; cursor: pointer; text-transform: uppercase; font-size: 10px; font-weight: 900;
-            border-radius: 2px;
+            background: rgba(255, 174, 0, 0.05); color: var(--accent); border: 1px solid var(--accent);
+            padding: 12px; cursor: pointer; text-transform: uppercase; font-size: 9px; font-weight: 900;
+            transition: all 0.2s; border-radius: 2px;
         }
+        button:hover { background: var(--accent); color: #000; }
+        button:active { transform: scale(0.95); }
 
-        /* BRIGHTNESS CONTROL STYLES */
-        #luma-container { display: flex; align-items: center; gap: 10px; grid-column: span 2; position: relative; }
+        /* BRIGHTNESS CONTROL */
+        #luma-container { display: flex; align-items: center; gap: 10px; grid-column: span 2; }
         #luma-slider { 
             display: none; width: 100%; height: 4px; appearance: none; 
             background: rgba(255, 174, 0, 0.2); outline: none; border-radius: 2px;
         }
         #luma-slider::-webkit-slider-thumb { 
-            appearance: none; width: 12px; height: 12px; background: var(--accent); border-radius: 50%; cursor: pointer; 
+            appearance: none; width: 14px; height: 14px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid #000;
         }
 
-        #terminal { font-size: 10px; color: #888; margin-top: 10px; font-family: monospace; }
+        #terminal { font-size: 9px; color: #555; margin-top: 12px; font-family: 'Courier New', monospace; border-top: 1px solid #222; padding-top: 8px; }
     </style>
 </head>
 <body>
@@ -56,26 +61,29 @@
 <div id="ui-overlay">
     <div class="top-row" style="display: flex; justify-content: space-between; width: 100%;">
         <div class="tactical-panel">
-            <div id="status-header">SENTRY // LUMA_SYNC_v28</div>
-            <div class="telemetry-item">NODE COUNT: <span id="val-count" class="val">0</span></div>
-            <div class="telemetry-item">LATITUDE: <span id="val-lat" class="val">0.000000</span></div>
-            <div class="telemetry-item">LONGITUDE: <span id="val-lon" class="val">0.000000</span></div>
+            <div id="status-header">SENTRY // DATA_LOG_v29</div>
+            <div class="telemetry-item">HISTORY NODES: <span id="val-count" class="val">0</span></div>
+            <div class="telemetry-item">CURR_LAT: <span id="val-lat" class="val">0.000000</span></div>
+            <div class="telemetry-item">CURR_LON: <span id="val-lon" class="val">0.000000</span></div>
+            <div class="telemetry-item">ACCURACY: <span id="val-acc" class="val">0</span>m</div>
         </div>
 
-        <div class="tactical-panel" style="width: 240px;">
+        <div class="tactical-panel" style="width: 250px;">
             <div class="btn-grid">
                 <button onclick="engine.toggleCapture(true)">Connect</button>
                 <button onclick="engine.toggleCapture(false)">Stop</button>
                 
                 <div id="luma-container">
-                    <button id="luma-btn" style="width: 100%;" onclick="engine.toggleLumaUI()">LUMA CONTROL</button>
+                    <button id="luma-btn" style="width: 100%;" onclick="engine.toggleLumaUI()">Brightness</button>
                     <input type="range" id="luma-slider" min="5" max="100" value="50" oninput="engine.updateBrightness(this.value)">
                 </div>
 
+                <button style="grid-column: span 2; background: rgba(0, 255, 102, 0.1); border-color: var(--packet); color: var(--packet);" onclick="engine.exportTelemetry()">Export Telemetry (.CSV)</button>
+                
                 <button onclick="engine.reCenter()">Recenter</button>
-                <button onclick="engine.clearTrail()" style="color: #ff4444;">Purge</button>
+                <button onclick="engine.clearHistory()" style="color: var(--danger); border-color: rgba(255, 68, 68, 0.4);">Purge Buffer</button>
             </div>
-            <div id="terminal">> System Link Ready.</div>
+            <div id="terminal">> Sentry uplink initialized.</div>
         </div>
     </div>
 </div>
@@ -90,7 +98,7 @@ class SentryEngine {
         this.origin = null;
         this.zoom = 18;
         this.tileSize = 512;
-        this.history = [];
+        this.history = []; // The Telemetry Buffer
         this.spheres = [];
         
         this.initCore();
@@ -113,12 +121,12 @@ class SentryEngine {
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(this.renderer.domElement);
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
 
-        // LIGHTING REFS FOR BRIGHTNESS CONTROL
         this.ambient = new THREE.AmbientLight(0xffffff, 0.5);
         this.scene.add(this.ambient);
 
@@ -130,58 +138,57 @@ class SentryEngine {
     initEntities() {
         this.core = new THREE.Mesh(
             new THREE.OctahedronGeometry(15, 0),
-            new THREE.MeshStandardMaterial({ color: 0xffae00, emissive: 0xffae00, emissiveIntensity: 0.8 })
+            new THREE.MeshStandardMaterial({ color: 0xffae00, emissive: 0xffae00, emissiveIntensity: 0.8, metalness: 0.8 })
         );
         this.scene.add(this.core);
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
     }
 
-    // --- BRIGHTNESS LOGIC ---
     toggleLumaUI() {
         const btn = document.getElementById('luma-btn');
         const slider = document.getElementById('luma-slider');
+        const isHidden = slider.style.display === 'none' || slider.style.display === '';
         
-        if (slider.style.display === 'none' || slider.style.display === '') {
-            btn.style.width = '30%';
-            btn.innerText = '🔆';
-            slider.style.display = 'block';
-        } else {
-            btn.style.width = '100%';
-            btn.innerText = 'LUMA CONTROL';
-            slider.style.display = 'none';
-        }
+        btn.style.width = isHidden ? '30%' : '100%';
+        btn.innerText = isHidden ? '🔅' : 'Brightness';
+        slider.style.display = isHidden ? 'block' : 'none';
     }
 
     updateBrightness(val) {
         const factor = val / 100;
-        
-        // Adjust lights
         this.ambient.intensity = factor * 1.5;
         this.sun.intensity = factor * 1.0;
         
-        // Adjust map darkness
         const mapGray = factor * 0.8;
-        this.tilesGroup.children.forEach(mesh => {
-            mesh.material.color.setRGB(mapGray, mapGray, mapGray);
-        });
-
-        // Adjust emissive glow (invert glow: brighter map = less glow needed)
+        this.tilesGroup.children.forEach(mesh => mesh.material.color.setRGB(mapGray, mapGray, mapGray));
         this.core.material.emissiveIntensity = 1.2 - (factor * 0.8);
     }
 
     handleGPS(pos) {
-        const { latitude, longitude } = pos.coords;
+        const { latitude, longitude, accuracy, timestamp } = pos.coords;
+        
+        // Log to history buffer
+        this.history.push({
+            time: new Date().toISOString(),
+            lat: latitude,
+            lon: longitude,
+            acc: accuracy
+        });
+        
+        document.getElementById('val-count').innerText = this.history.length;
+        document.getElementById('val-lat').innerText = latitude.toFixed(6);
+        document.getElementById('val-lon').innerText = longitude.toFixed(6);
+        document.getElementById('val-acc').innerText = Math.round(accuracy);
+
         if (!this.origin) {
             this.origin = { x: this.lonToX(longitude, this.zoom), y: this.latToY(latitude, this.zoom) };
             this.updateMap(latitude, longitude);
         }
+
         const tX = (this.lonToX(longitude, this.zoom) - this.origin.x) * this.tileSize;
         const tZ = (this.latToY(latitude, this.zoom) - this.origin.y) * this.tileSize;
         this.core.position.set(tX, 40, tZ);
-        
-        document.getElementById('val-lat').innerText = latitude.toFixed(6);
-        document.getElementById('val-lon').innerText = longitude.toFixed(6);
     }
 
     updateMap(lat, lon) {
@@ -204,19 +211,48 @@ class SentryEngine {
         }
     }
 
+    exportTelemetry() {
+        if (this.history.length === 0) {
+            document.getElementById('terminal').innerText = "> Error: Buffer empty.";
+            return;
+        }
+
+        const headers = "Timestamp,Latitude,Longitude,Accuracy_m\n";
+        const rows = this.history.map(pt => `${pt.time},${pt.lat},${pt.lon},${pt.acc}`).join("\n");
+        const blob = new Blob([headers + rows], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.setAttribute('hidden', '');
+        a.setAttribute('href', url);
+        a.setAttribute('download', `SENTRY_LOG_${Date.now()}.csv`);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        document.getElementById('terminal').innerText = "> Telemetry exported successfully.";
+    }
+
     toggleCapture(state) {
         if(state && !this.isCapturing) {
-            this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), null, { enableHighAccuracy: true });
-            document.getElementById('terminal').innerText = "> Uplink Active.";
+            this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), 
+                (err) => console.error(err), 
+                { enableHighAccuracy: true, maximumAge: 1000 });
+            document.getElementById('terminal').innerText = "> Uplink established. Logging...";
         } else {
             navigator.geolocation.clearWatch(this.watchID);
-            document.getElementById('terminal').innerText = "> Standby.";
+            document.getElementById('terminal').innerText = "> Uplink suspended.";
         }
         this.isCapturing = state;
     }
 
     reCenter() { if(this.core) this.controls.target.copy(this.core.position); }
-    clearTrail() { /* Purge logic */ }
+    
+    clearHistory() {
+        this.history = [];
+        document.getElementById('val-count').innerText = "0";
+        document.getElementById('terminal').innerText = "> Local buffer purged.";
+    }
 
     animate() {
         requestAnimationFrame(() => this.animate());
