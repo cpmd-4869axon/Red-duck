@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentry Node | Tactical Night Mode</title>
+    <title>Sentry Node | Solid State Geo</title>
     <style>
-        :root { --neon: #00ff41; --bg: #000800; }
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', monospace; color: var(--neon); }
+        :root { --neon: #00ff41; --bg: #050505; }
+        body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon); }
         
         #ui-panel {
             position: absolute; top: 15px; left: 15px; z-index: 100;
             display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
-            background: rgba(0, 10, 0, 0.95); padding: 12px; 
+            background: rgba(0, 20, 0, 0.95); padding: 12px; 
             border: 1px solid var(--neon); box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
         }
 
         #status-bar { grid-column: span 2; font-size: 10px; border-bottom: 1px solid var(--neon); padding-bottom: 6px; margin-bottom: 6px; text-transform: uppercase; }
 
         button {
-            background: #000; color: var(--neon); border: 1px solid var(--neon);
+            background: transparent; color: var(--neon); border: 1px solid var(--neon);
             padding: 10px; cursor: pointer; text-transform: uppercase; font-size: 10px;
-            transition: 0.2s; font-weight: bold;
+            transition: all 0.2s; font-weight: bold;
         }
 
         button:active { background: var(--neon); color: #000; }
 
         #data-readout {
             position: absolute; top: 15px; right: 15px; font-size: 11px;
-            background: rgba(0,0,0,0.9); padding: 10px; border-left: 3px solid var(--neon);
+            background: rgba(0,0,0,0.8); padding: 10px; border-left: 2px solid var(--neon);
         }
     </style>
 </head>
 <body>
 
 <div id="ui-panel">
-    <div id="status-bar">SYSTEM STATUS: NIGHT_OPS_ACTIVE</div>
+    <div id="status-bar">SYSTEM STATUS: SOLID_SYNC_READY</div>
     <button onclick="engine.toggleCapture(true)">Start</button>
     <button onclick="engine.toggleCapture(false)">Pause</button>
     <button onclick="engine.stop()">Stop</button>
@@ -56,10 +56,11 @@ class SentryEngine {
     constructor() {
         this.data = [];
         this.isCapturing = false;
+        this.watchID = null;
         this.origin = null;
-        this.scale = 200000; 
+        this.scale = 250000; 
         this.zoom = 18; 
-        this.tileSize = 45; 
+        this.tileSize = 60; 
         
         this.initScene();
         this.initObjects();
@@ -68,31 +69,28 @@ class SentryEngine {
 
     initScene() {
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x000000, 10, 150); // Night fog depth
-        
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 40, 40);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        this.camera.position.set(0, 50, 50);
         
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0x000000);
+        this.renderer.setClearColor(0x050505);
         document.body.appendChild(this.renderer.domElement);
 
-        // Lighting for the Solid Avatar
-        const ambient = new THREE.AmbientLight(0x404040, 1.5); 
-        this.scene.add(ambient);
-        const pointLight = new THREE.PointLight(0x00ff41, 2, 50);
-        pointLight.position.set(0, 10, 0);
+        // Lights for solid material depth
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        this.scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0x00ff41, 1, 100);
+        pointLight.position.set(0, 20, 10);
         this.scene.add(pointLight);
     }
 
     initObjects() {
-        // SOLID AVATAR (Pyramid)
-        const geometry = new THREE.CylinderGeometry(0, 1.2, 2, 4, 1);
+        // SOLID Avatar (Pyramid/Triangle)
+        const geometry = new THREE.ConeGeometry(1, 2, 4);
         const material = new THREE.MeshPhongMaterial({ 
-            color: 0x002200, 
-            emissive: 0x00ff41, 
-            specular: 0x00ff41, 
+            color: 0x003300, 
+            emissive: 0x00ff41,
             shininess: 100,
             flatShading: true 
         });
@@ -101,16 +99,18 @@ class SentryEngine {
         this.scene.add(this.avatar);
 
         // Pulsing Ring
-        const ringGeo = new THREE.RingGeometry(1.3, 1.5, 32);
+        const ringGeo = new THREE.RingGeometry(1.2, 1.4, 32);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff41, transparent: true, side: THREE.DoubleSide });
         this.ring = new THREE.Mesh(ringGeo, ringMat);
         this.ring.rotation.x = Math.PI / 2;
         this.scene.add(this.ring);
 
+        // 3x3 Leaflet Tile Container
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
     }
 
+    // Leaflet Tile Logic
     lon2tile(lon, zoom) { return Math.floor((lon + 180) / 360 * Math.pow(2, zoom)); }
     lat2tile(lat, zoom) {
         return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
@@ -126,18 +126,13 @@ class SentryEngine {
             for (let yOff = -1; yOff <= 1; yOff++) {
                 const x = xCenter + xOff;
                 const y = yCenter + yOff;
-                // Night Mode Tiles (CartoDB Dark Matter)
-                const url = `https://a.basemaps.cartocdn.com/dark_all/${this.zoom}/${x}/${y}@2x.png`;
+                const url = `https://tile.openstreetmap.org/${this.zoom}/${x}/${y}.png`;
                 
                 loader.load(url, (texture) => {
-                    const planeMat = new THREE.MeshBasicMaterial({ 
-                        map: texture, 
-                        color: 0x555555, // Darken further for high-contrast night ops
-                        side: THREE.DoubleSide 
-                    });
+                    const planeMat = new THREE.MeshBasicMaterial({ map: texture });
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(this.tileSize, this.tileSize), planeMat);
                     plane.rotation.x = -Math.PI / 2;
-                    plane.position.set(xOff * this.tileSize, -0.05, yOff * this.tileSize);
+                    plane.position.set(xOff * this.tileSize, -0.1, yOff * this.tileSize);
                     this.tilesGroup.add(plane);
                 });
             }
@@ -145,47 +140,55 @@ class SentryEngine {
     }
 
     toggleCapture(state) {
-        if (state) {
+        if (state && !this.watchID) {
             this.isCapturing = true;
-            this.updateStatus("NIGHT_UPLINK_ON");
-            this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), null, { enableHighAccuracy: true });
+            this.updateStatus("UPLINK_ACTIVE");
+            this.watchID = navigator.geolocation.watchPosition((pos) => this.handleGPS(pos), (err) => this.updateStatus("GPS_ERROR"), { enableHighAccuracy: true });
         } else {
             this.isCapturing = false;
-            this.updateStatus("UPLINK_STANDBY");
+            this.updateStatus("UPLINK_PAUSED");
         }
     }
 
     handleGPS(position) {
         if (!this.isCapturing) return;
         const { latitude, longitude, altitude } = position.coords;
+        
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
             this.updateMapTiles(latitude, longitude);
         }
+
         document.getElementById('val-lat').innerText = latitude.toFixed(6);
         document.getElementById('val-lon').innerText = longitude.toFixed(6);
         document.getElementById('val-alt').innerText = (altitude || 0).toFixed(1) + "m";
+
         const xPos = (longitude - this.origin.lon) * this.scale;
         const zPos = -(latitude - this.origin.lat) * this.scale;
         this.avatar.position.set(xPos, 1.5, zPos);
     }
 
     reCenter() {
-        this.camera.position.set(this.avatar.position.x + 25, 25, this.avatar.position.z + 25);
+        this.camera.position.set(this.avatar.position.x + 30, 30, this.avatar.position.z + 30);
         this.camera.lookAt(this.avatar.position);
     }
 
-    updateStatus(msg) { document.getElementById('status-bar').innerText = `SYSTEM: ${msg}`; }
+    updateStatus(msg) { document.getElementById('status-bar').innerText = `SYSTEM STATUS: ${msg}`; }
 
     animate() {
         requestAnimationFrame(() => this.animate());
         const time = performance.now() * 0.001;
-        this.avatar.position.y = 1.8 + Math.sin(time * 3) * 0.4;
-        this.avatar.rotation.y += 0.03; // Smooth rotation for solid body
+
+        // Solid Avatar Animation
+        this.avatar.position.y = 2 + Math.sin(time * 3) * 0.4;
+        this.avatar.rotation.y += 0.03;
+
+        // Pulse Ring
         let pulse = (performance.now() % 400) / 400;
-        this.ring.scale.set(1 + pulse * 1.5, 1 + pulse * 1.5, 1);
+        this.ring.scale.set(1.2 + pulse * 2, 1.2 + pulse * 2, 1);
         this.ring.material.opacity = 1 - pulse;
         this.ring.position.set(this.avatar.position.x, 0.1, this.avatar.position.z);
+
         this.renderer.render(this.scene, this.camera);
     }
 }
