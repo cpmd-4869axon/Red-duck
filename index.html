@@ -3,69 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | BLUE_OPS v11.0</title>
+    <title>Sentry Node | BLUE_OPS v13.0</title>
     <style>
         :root { 
             --neon-blue: #00f2ff; 
-            --neon-glow: 0 0 15px #00f2ff, 0 0 30px rgba(0, 242, 255, 0.5);
+            --highlighter: #00ffff;
             --bg: #000508; 
             --map-filter: invert(100%) hue-rotate(95deg) brightness(0.3) sepia(0.8) saturate(7) contrast(1.3);
         }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon-blue); }
-        canvas { display: block; filter: contrast(1.1) brightness(1.2); }
-
+        
         #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
-
         .tactical-panel {
             pointer-events: auto; background: rgba(0, 10, 20, 0.95); 
-            border: 1px solid var(--neon-blue); box-shadow: var(--neon-glow);
+            border: 1px solid var(--neon-blue); box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
             backdrop-filter: blur(10px);
         }
-
-        #main-panel {
-            position: absolute; top: 20px; left: 20px; width: 250px; padding: 15px;
-            border-left: 5px solid var(--neon-blue);
-        }
-
-        #status-header { 
-            font-size: 11px; font-weight: bold; border-bottom: 1px solid rgba(0, 242, 255, 0.3);
-            padding-bottom: 10px; margin-bottom: 12px; letter-spacing: 2px;
-        }
-
+        #main-panel { position: absolute; top: 20px; left: 20px; width: 250px; padding: 15px; border-left: 5px solid var(--neon-blue); }
+        #status-header { font-size: 11px; font-weight: bold; border-bottom: 1px solid rgba(0, 242, 255, 0.3); padding-bottom: 10px; margin-bottom: 12px; letter-spacing: 2px; }
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         button {
             background: rgba(0, 242, 255, 0.05); color: var(--neon-blue); border: 1px solid var(--neon-blue);
             padding: 10px; cursor: pointer; text-transform: uppercase; font-size: 9px;
-            font-weight: 900; transition: 0.2s; box-shadow: inset 0 0 5px rgba(0, 242, 255, 0.2);
+            font-weight: 900; transition: 0.2s;
         }
-        button:hover { background: var(--neon-blue); color: #000; box-shadow: var(--neon-glow); }
-
-        #telemetry-box {
-            position: absolute; top: 20px; right: 20px; padding: 15px;
-            border-right: 5px solid var(--neon-blue); text-align: right; font-size: 11px;
-        }
+        button:hover { background: var(--neon-blue); color: #000; }
+        #telemetry-box { position: absolute; top: 20px; right: 20px; padding: 15px; border-right: 5px solid var(--neon-blue); text-align: right; font-size: 11px; }
         .val { color: #fff; font-weight: bold; text-shadow: 0 0 5px var(--neon-blue); }
-        .label { font-size: 9px; opacity: 0.7; margin-right: 5px; }
     </style>
 </head>
 <body>
 
 <div id="ui-overlay">
     <div id="main-panel" class="tactical-panel">
-        <div id="status-header">SENTRY // BLUE_OPS_v11</div>
+        <div id="status-header">SENTRY // DATA_LOG_v13</div>
         <div class="btn-grid">
-            <button onclick="engine.toggleCapture(false)">Hold Link</button>
+            <button onclick="engine.toggleCapture(false)">Pause</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
-            <button style="grid-column: span 2; background: rgba(0,242,255,0.15)" onclick="engine.reCenter()">Sync Tactical Top-View</button>
-            <button onclick="engine.clearTrail()">Purge Path</button>
+            <button style="grid-column: span 2; background: rgba(0,242,255,0.15)" onclick="engine.exportCSV()">Export Session CSV</button>
+            <button onclick="engine.clearTrail()">Purge Log</button>
             <button onclick="window.location.reload()">Reboot</button>
         </div>
     </div>
-
     <div id="telemetry-box" class="tactical-panel">
-        <span class="label">SIGNAL</span> <span id="val-acc" class="val">SYNCING...</span><br>
-        <span class="label">LAT</span> <span id="val-lat" class="val">---</span><br>
-        <span class="label">LON</span> <span id="val-lon" class="val">---</span>
+        LOGGED: <span id="val-count" class="val">0</span> pts<br>
+        LAT: <span id="val-lat" class="val">---</span><br>
+        LON: <span id="val-lon" class="val">---</span>
     </div>
 </div>
 
@@ -79,8 +62,8 @@ class SentryEngine {
         this.origin = null;
         this.scale = 650000; 
         this.zoom = 19;
-        this.pathPoints = [];
-        this.accuracy = 0;
+        this.history = []; // CSV Data storage
+        this.spheres = []; // 3D Plot storage
         
         this.initCore();
         this.initEntities();
@@ -92,58 +75,70 @@ class SentryEngine {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 35000);
         this.camera.position.set(0, 200, 0); 
-
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
-
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
-        this.controls.enablePan = false;
-
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        this.pointLight = new THREE.PointLight(0x00f2ff, 5, 450);
-        this.scene.add(this.pointLight);
     }
 
     initEntities() {
-        this.avatarGroup = new THREE.Group();
-        this.scene.add(this.avatarGroup);
-
-        // Solid Highlighter Core
-        const coreGeo = new THREE.OctahedronGeometry(3.2, 0);
-        this.coreMat = new THREE.MeshPhongMaterial({ 
-            color: 0x000000, emissive: 0x00f2ff, emissiveIntensity: 2, shininess: 100
-        });
-        this.core = new THREE.Mesh(coreGeo, this.coreMat);
-        this.avatarGroup.add(this.core);
-
-        // Radiant Outer Shell
-        const shellGeo = new THREE.IcosahedronGeometry(4.5, 1);
-        const shellMat = new THREE.MeshBasicMaterial({ 
-            color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.4 
-        });
-        this.shell = new THREE.Mesh(shellGeo, shellMat);
-        this.avatarGroup.add(this.shell);
-
-        // Ground Plane Grid
-        const grid = new THREE.GridHelper(4000, 50, 0x00f2ff, 0x002222);
-        grid.position.y = -0.5;
-        grid.material.transparent = true;
-        grid.material.opacity = 0.3;
-        this.scene.add(grid);
-
+        this.avatar = new THREE.Mesh(
+            new THREE.OctahedronGeometry(4, 0),
+            new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00f2ff, emissiveIntensity: 2 })
+        );
+        this.scene.add(this.avatar);
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
+        
+        // Sphere Geometry for plotted points
+        this.sphereGeo = new THREE.SphereGeometry(1.2, 16, 16);
+        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    }
 
-        // Highlighter Trail
-        this.trailGeo = new THREE.BufferGeometry();
-        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ 
-            color: 0x00f2ff, transparent: true, opacity: 0.8, linewidth: 2 
-        }));
-        this.scene.add(this.trail);
+    handleGPS(pos) {
+        const { latitude, longitude, accuracy } = pos.coords;
+        if (!this.origin) {
+            this.origin = { lat: latitude, lon: longitude };
+            this.updateMap(latitude, longitude);
+        }
+
+        const tX = (longitude - this.origin.lon) * this.scale;
+        const tZ = -(latitude - this.origin.lat) * this.scale;
+
+        // Log Data for CSV
+        this.history.push({
+            time: new Date().toISOString(),
+            lat: latitude,
+            lon: longitude,
+            acc: accuracy
+        });
+
+        // Plot Sphere
+        const point = new THREE.Mesh(this.sphereGeo, this.sphereMat);
+        point.position.set(tX, 0.5, tZ);
+        this.scene.add(point);
+        this.spheres.push(point);
+
+        // Update UI
+        document.getElementById('val-lat').innerText = latitude.toFixed(6);
+        document.getElementById('val-lon').innerText = longitude.toFixed(6);
+        document.getElementById('val-count').innerText = this.history.length;
+        this.avatar.position.set(tX, 8, tZ);
+    }
+
+    exportCSV() {
+        let csv = "Timestamp,Latitude,Longitude,Accuracy\n";
+        this.history.forEach(row => {
+            csv += `${row.time},${row.lat},${row.lon},${row.acc}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Sentry_Log_${Date.now()}.csv`;
+        a.click();
     }
 
     updateMap(lat, lon) {
@@ -151,7 +146,6 @@ class SentryEngine {
         const xC = Math.floor((lon + 180) / 360 * Math.pow(2, this.zoom));
         const yC = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, this.zoom));
         const loader = new THREE.TextureLoader();
-
         for (let x = -1; x <= 1; x++) {
             for (let y = -1; y <= 1; y++) {
                 const url = `https://tile.openstreetmap.org/${this.zoom}/${xC + x}/${yC + y}.png`;
@@ -159,7 +153,6 @@ class SentryEngine {
                     const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ map: tex }));
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(x * 120, -0.2, y * 120);
-                    // Blue Ops Highlighter Filter
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
                     this.tilesGroup.add(plane);
                 });
@@ -169,63 +162,20 @@ class SentryEngine {
 
     toggleCapture(state) {
         this.isCapturing = state;
-        if (state) {
-            this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), null, { enableHighAccuracy: true });
-        } else {
-            navigator.geolocation.clearWatch(this.watchID);
-        }
+        if (state) this.watchID = navigator.geolocation.watchPosition(p => this.handleGPS(p), null, { enableHighAccuracy: true });
+        else navigator.geolocation.clearWatch(this.watchID);
     }
 
-    handleGPS(pos) {
-        const { latitude, longitude, accuracy } = pos.coords;
-        this.accuracy = accuracy;
-
-        if (!this.origin) {
-            this.origin = { lat: latitude, lon: longitude };
-            this.updateMap(latitude, longitude);
-            this.reCenter();
-        }
-
-        document.getElementById('val-lat').innerText = latitude.toFixed(6);
-        document.getElementById('val-lon').innerText = longitude.toFixed(6);
-        document.getElementById('val-acc').innerText = accuracy.toFixed(1) + "m";
-        
-        const tX = (longitude - this.origin.lon) * this.scale;
-        const tZ = -(latitude - this.origin.lat) * this.scale;
-
-        this.pathPoints.push(new THREE.Vector3(tX, 0.5, tZ));
-        this.trailGeo.setFromPoints(this.pathPoints);
-        this.avatarGroup.userData.dest = new THREE.Vector3(tX, 8, tZ);
+    clearTrail() {
+        this.spheres.forEach(s => this.scene.remove(s));
+        this.spheres = [];
+        this.history = [];
+        document.getElementById('val-count').innerText = "0";
     }
-
-    reCenter() {
-        if (this.avatarGroup.position) {
-            // Perspective Lock
-            this.camera.position.set(this.avatarGroup.position.x, 220, this.avatarGroup.position.z);
-            this.controls.target.copy(this.avatarGroup.position);
-        }
-    }
-
-    clearTrail() { this.pathPoints = []; this.trailGeo.setFromPoints([]); }
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        const time = performance.now() * 0.001;
-
-        if (this.avatarGroup.userData.dest) {
-            // Smooth Interpolation
-            this.avatarGroup.position.lerp(this.avatarGroup.userData.dest, 0.06);
-        }
-
-        // Highlighter Glow Pulse
-        const intensity = 1.5 + Math.sin(time * 3) * 0.5;
-        this.coreMat.emissiveIntensity = intensity * (this.accuracy < 10 ? 2 : 0.8);
-        
-        this.core.rotation.y += 0.04;
-        this.shell.rotation.x += 0.02;
-        this.shell.rotation.z -= 0.01;
-
-        this.pointLight.position.copy(this.avatarGroup.position);
+        this.avatar.rotation.y += 0.02;
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
