@@ -3,43 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | BLUE_OPS v16.0</title>
+    <title>Sentry Node | BLUE_OPS v17.0</title>
     <style>
         :root { 
             --neon-blue: #00f2ff; 
             --highlighter: #00ffff;
             --bg: #00080a; 
-            --map-filter: invert(100%) hue-rotate(95deg) brightness(0.5) contrast(1.2) saturate(5);
+            --map-filter: invert(100%) hue-rotate(95deg) brightness(0.6) contrast(1.2) saturate(4);
         }
         body { margin: 0; overflow: hidden; background: var(--bg); font-family: 'Courier New', monospace; color: var(--neon-blue); }
         
         #ui-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 100; }
         .tactical-panel {
-            pointer-events: auto; background: rgba(0, 15, 25, 0.95); 
-            border: 1px solid var(--neon-blue); box-shadow: 0 0 25px rgba(0, 242, 255, 0.5);
+            pointer-events: auto; background: rgba(0, 20, 30, 0.95); 
+            border: 1px solid var(--neon-blue); box-shadow: 0 0 30px rgba(0, 242, 255, 0.6);
             backdrop-filter: blur(10px);
         }
         #main-panel { position: absolute; top: 20px; left: 20px; width: 250px; padding: 15px; border-left: 5px solid var(--highlighter); }
-        #status-header { font-size: 11px; font-weight: bold; border-bottom: 1px solid rgba(0, 242, 255, 0.4); padding-bottom: 10px; margin-bottom: 12px; letter-spacing: 2px; }
+        #status-header { font-size: 11px; font-weight: bold; border-bottom: 1px solid rgba(0, 242, 255, 0.5); padding-bottom: 10px; margin-bottom: 12px; letter-spacing: 2px; }
         .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         button {
-            background: rgba(0, 242, 255, 0.15); color: var(--highlighter); border: 1px solid var(--highlighter);
+            background: rgba(0, 242, 255, 0.2); color: var(--highlighter); border: 1px solid var(--highlighter);
             padding: 10px; cursor: pointer; text-transform: uppercase; font-size: 9px; font-weight: 900;
         }
         button:active { background: var(--highlighter); color: #000; }
         #telemetry-box { position: absolute; top: 20px; right: 20px; padding: 15px; border-right: 5px solid var(--highlighter); text-align: right; font-size: 11px; }
-        .val { color: #fff; font-weight: bold; text-shadow: 0 0 8px var(--neon-blue); }
+        .val { color: #fff; font-weight: bold; text-shadow: 0 0 10px var(--neon-blue); }
     </style>
 </head>
 <body>
 
 <div id="ui-overlay">
     <div id="main-panel" class="tactical-panel">
-        <div id="status-header">SENTRY // BLUE_OPS_v16</div>
+        <div id="status-header">SENTRY // VISIBILITY_RESTORE_v17</div>
         <div class="btn-grid">
             <button onclick="engine.toggleCapture(false)">Pause</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
-            <button style="grid-column: span 2; background: rgba(0,242,255,0.25)" onclick="engine.exportCSV()">Export Session CSV</button>
+            <button style="grid-column: span 2; background: rgba(0,242,255,0.3)" onclick="engine.exportCSV()">Export Session CSV</button>
             <button onclick="engine.clearTrail()">Purge Log</button>
             <button onclick="engine.reCenter()">Re-Center</button>
         </div>
@@ -72,8 +72,8 @@ class SentryEngine {
 
     initCore() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 50000);
-        this.camera.position.set(0, 350, 0); 
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 60000);
+        this.camera.position.set(0, 400, 0); 
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -82,25 +82,23 @@ class SentryEngine {
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.enablePan = false;
 
-        // LIGHTING ENGINE
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 1.2);
+        // VISIBILITY RESET: LIGHTING
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x002233, 1.5);
         this.scene.add(hemiLight);
 
-        this.trackingLight = new THREE.PointLight(0x00f2ff, 10, 800);
+        this.trackingLight = new THREE.PointLight(0x00f2ff, 12, 1000);
         this.scene.add(this.trackingLight);
     }
 
     initEntities() {
-        // DIAMOND AVATAR
-        const diamondGeo = new THREE.OctahedronGeometry(6, 0);
+        // VISIBILITY RESET: DIAMOND
+        const diamondGeo = new THREE.OctahedronGeometry(7, 0);
         this.diamondMat = new THREE.MeshStandardMaterial({ 
             color: 0x000000, 
             emissive: 0x00f2ff, 
-            emissiveIntensity: 4,
-            roughness: 0.1,
-            metalness: 0.5
+            emissiveIntensity: 5,
+            visible: true 
         });
         this.diamond = new THREE.Mesh(diamondGeo, this.diamondMat);
         this.scene.add(this.diamond);
@@ -108,12 +106,13 @@ class SentryEngine {
         this.tilesGroup = new THREE.Group();
         this.scene.add(this.tilesGroup);
         
-        // PLOTTED SPHERES
-        this.sphereGeo = new THREE.SphereGeometry(2.5, 16, 16);
+        // VISIBILITY RESET: SPHERES
+        this.sphereGeo = new THREE.SphereGeometry(3, 16, 16);
         this.sphereMat = new THREE.MeshStandardMaterial({ 
             color: 0x00ffff, 
             emissive: 0x00ffff, 
-            emissiveIntensity: 2 
+            emissiveIntensity: 3,
+            visible: true
         });
     }
 
@@ -129,9 +128,10 @@ class SentryEngine {
 
         this.history.push({ time: new Date().toISOString(), lat: latitude, lon: longitude, acc: accuracy });
 
-        // CREATE SOLID PLOT POINT
+        // CREATE VISIBLE PLOT POINT
         const point = new THREE.Mesh(this.sphereGeo, this.sphereMat);
-        point.position.set(tX, 1, tZ);
+        point.position.set(tX, 2, tZ);
+        point.visible = true; // Visibility Lock
         this.scene.add(point);
         this.spheres.push(point);
 
@@ -139,8 +139,8 @@ class SentryEngine {
         document.getElementById('val-lon').innerText = longitude.toFixed(6);
         document.getElementById('val-count').innerText = this.history.length;
         
-        this.diamond.position.set(tX, 15, tZ);
-        this.trackingLight.position.set(tX, 30, tZ);
+        this.diamond.position.set(tX, 20, tZ);
+        this.trackingLight.position.set(tX, 40, tZ);
     }
 
     updateMap(lat, lon) {
@@ -153,7 +153,7 @@ class SentryEngine {
             for (let y = -2; y <= 2; y++) {
                 const url = `https://tile.openstreetmap.org/${this.zoom}/${xC + x}/${yC + y}.png`;
                 loader.load(url, (tex) => {
-                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ map: tex }));
+                    const plane = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ map: tex, visible: true }));
                     plane.rotation.x = -Math.PI / 2;
                     plane.position.set(x * 120, -5, y * 120); 
                     plane.onBeforeRender = () => { this.renderer.domElement.style.filter = "var(--map-filter)"; };
@@ -164,7 +164,7 @@ class SentryEngine {
     }
 
     reCenter() {
-        this.camera.position.set(this.diamond.position.x, 350, this.diamond.position.z);
+        this.camera.position.set(this.diamond.position.x, 400, this.diamond.position.z);
         this.controls.target.copy(this.diamond.position);
     }
 
@@ -175,7 +175,7 @@ class SentryEngine {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Sentry_Log_v16_${Date.now()}.csv`;
+        a.download = `Sentry_Visibility_Log_${Date.now()}.csv`;
         a.click();
     }
 
@@ -194,7 +194,7 @@ class SentryEngine {
 
     animate() {
         requestAnimationFrame(() => this.animate());
-        this.diamond.rotation.y += 0.05;
+        this.diamond.rotation.y += 0.06;
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
