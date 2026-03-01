@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sentry Node | NCH Blue-Ops v7.5</title>
+    <title>Sentry Node | Top-View Blue Ops</title>
     <style>
         :root { 
-            --neon-blue: #00ffff; /* The new tactical color */
+            --neon-blue: #00f2ff; 
             --warning: #ff3e3e;
             --bg: #020202; 
             --map-filter: invert(100%) hue-rotate(90deg) brightness(0.4) sepia(1) saturate(6) hue-rotate(60deg);
@@ -19,7 +19,7 @@
         #main-panel {
             position: absolute; top: 20px; left: 20px; pointer-events: auto;
             background: rgba(0, 5, 10, 0.9); padding: 15px; border: 1px solid var(--neon-blue);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2); width: 220px;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2); width: 220px;
         }
 
         #status-header { font-size: 10px; border-bottom: 1px solid var(--neon-blue); padding-bottom: 8px; margin-bottom: 10px; letter-spacing: 2px; color: #fff; }
@@ -44,18 +44,18 @@
 
 <div id="ui-overlay">
     <div id="main-panel">
-        <div id="status-bar">SENTRY NODE // MAP_MODE: BLUE_OPS</div>
+        <div id="status-header">SYSTEM // BLUE_OPS: <span style="color:var(--neon-blue)">ACTIVE</span></div>
         <div class="btn-grid">
             <button onclick="engine.toggleCapture(false)">Hold Link</button>
             <button onclick="engine.toggleCapture(true)">Resume</button>
-            <button style="grid-column: span 2;" onclick="engine.reCenter()">Sync Tactical 45°</button>
+            <button style="grid-column: span 2; background: rgba(0,242,255,0.15)" onclick="engine.reCenter()">Sync Top-View (90°)</button>
             <button onclick="engine.clearTrail()">Purge Path</button>
             <button onclick="window.location.reload()">Reboot</button>
         </div>
     </div>
 
     <div id="telemetry-box">
-        SIGNAL: <span id="val-acc" class="val">SYNCING...</span><br>
+        SIGNAL: <span id="val-acc" class="val">UPLINKING...</span><br>
         LAT: <span id="val-lat" class="val">---</span><br>
         LON: <span id="val-lon" class="val">---</span>
     </div>
@@ -84,8 +84,9 @@ class SentryEngine {
 
     initCore() {
         this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 20000);
-        this.camera.position.set(100, 100, 100);
+        // Set camera for Top-Down Perspective
+        this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+        this.camera.position.set(0, 150, 0); 
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -95,7 +96,7 @@ class SentryEngine {
         this.controls.enableDamping = true;
 
         this.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        this.light = new THREE.PointLight(0x00ffff, 2, 300); // Blue light
+        this.light = new THREE.PointLight(0x00f2ff, 2, 300);
         this.scene.add(this.light);
     }
 
@@ -103,21 +104,21 @@ class SentryEngine {
         this.avatarGroup = new THREE.Group();
         this.scene.add(this.avatarGroup);
 
-        // Core Solid
+        // Solid Core - Neon Blue
         const coreGeo = new THREE.OctahedronGeometry(2.5, 0);
-        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00ffff, emissiveIntensity: 0.5 }); // Blue emissive
+        const coreMat = new THREE.MeshPhongMaterial({ color: 0x000000, emissive: 0x00f2ff, emissiveIntensity: 0.8 });
         this.core = new THREE.Mesh(coreGeo, coreMat);
         this.avatarGroup.add(this.core);
 
-        // Outer Wireframe Shell
-        const shellGeo = new THREE.OctahedronGeometry(3.0, 0);
-        const shellMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.8 }); // Blue wireframe
+        // Wireframe Shell - Neon Blue
+        const shellGeo = new THREE.OctahedronGeometry(3.1, 0);
+        const shellMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.9 });
         this.shell = new THREE.Mesh(shellGeo, shellMat);
         this.avatarGroup.add(this.shell);
 
-        // Data Protective Sphere
-        const sphereGeo = new THREE.IcosahedronGeometry(6.5, 1);
-        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.15 }); // Blue sphere
+        // Data Sphere
+        const sphereGeo = new THREE.IcosahedronGeometry(7, 1);
+        this.sphereMat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.15 });
         this.sphere = new THREE.Mesh(sphereGeo, this.sphereMat);
         this.avatarGroup.add(this.sphere);
 
@@ -125,7 +126,7 @@ class SentryEngine {
         this.scene.add(this.tilesGroup);
 
         this.trailGeo = new THREE.BufferGeometry();
-        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 })); // Blue trail
+        this.trail = new THREE.Line(this.trailGeo, new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.6 }));
         this.scene.add(this.trail);
     }
 
@@ -166,7 +167,7 @@ class SentryEngine {
         if (!this.origin) {
             this.origin = { lat: latitude, lon: longitude };
             this.updateMap(latitude, longitude);
-            this.reCenter();
+            this.reCenter(); // Force Top-View on first lock
         }
 
         document.getElementById('val-lat').innerText = latitude.toFixed(5);
@@ -182,8 +183,9 @@ class SentryEngine {
     }
 
     reCenter() {
-        const offset = 80;
-        this.camera.position.set(this.avatarGroup.position.x + offset, offset, this.avatarGroup.position.z + offset);
+        // Enforce 90-degree tactical top view
+        const height = 150;
+        this.camera.position.set(this.avatarGroup.position.x, height, this.avatarGroup.position.z);
         this.controls.target.copy(this.avatarGroup.position);
     }
 
@@ -197,16 +199,16 @@ class SentryEngine {
             this.avatarGroup.position.lerp(this.avatarGroup.userData.dest, 0.05);
         }
 
-        // Dual Rotation Core
-        this.core.rotation.y += 0.02;
-        this.shell.rotation.y -= 0.05;
-        this.sphere.rotation.x += 0.01;
-        this.sphere.rotation.z += 0.01;
+        // Blue Core Rotations
+        this.core.rotation.y += 0.03;
+        this.shell.rotation.x += 0.02;
+        this.shell.rotation.z += 0.02;
+        this.sphere.rotation.y -= 0.01;
 
-        // Signal Feedback
-        const s = 1 + (this.currentAcc / 40);
+        // Visual Feedback on Signal
+        const s = 1 + (this.currentAcc / 45);
         this.sphere.scale.setScalar(s);
-        this.sphereMat.color.setHex(this.currentAcc > 15 ? 0xff3e3e : 0x00ffff); // Red warning or blue stable
+        this.sphereMat.color.setHex(this.currentAcc > 15 ? 0xff3e3e : 0x00f2ff);
 
         this.light.position.set(this.avatarGroup.position.x, 15, this.avatarGroup.position.z);
         this.controls.update();
